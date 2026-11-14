@@ -1,0 +1,15 @@
+<!doctype html><html><body style="margin:0;height:3000px">
+<div data-testid="notebook-toolbar" style="padding:10px">
+  <button aria-label="Run all">Run all</button>
+  <button>Save</button>
+</div>
+<div role="main" data-testid="cell-list" style="height:300px;overflow:auto;border:1px solid #999">
+  <div style="height:1200px">cells<div class="monaco-editor"><textarea id="ed" aria-label="Editor"></textarea></div></div>
+</div>
+<div data-testid="assistant-panel" style="margin-top:20px">
+  <textarea id="prompt" aria-label="Ask the Assistant" placeholder="Ask a question"></textarea>
+  <button id="send" aria-label="Send">Send</button>
+  <button>Accept</button>
+</div>
+<input type="password" id="pw">
+</body></html>

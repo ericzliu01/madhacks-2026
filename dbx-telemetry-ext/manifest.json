@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Databricks UX Telemetry (research)",
+  "version": "0.1.0",
+  "description": "Opt-in, local-first recorder of interaction telemetry on Databricks pages for HCI research.",
+  "permissions": ["storage", "unlimitedStorage"],
+  "background": { "service_worker": "src/background.js" },
+  "action": { "default_title": "Databricks UX Telemetry", "default_popup": "src/popup.html" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.cloud.databricks.com/*",
+        "https://*.azuredatabricks.net/*",
+        "https://*.gcp.databricks.com/*"
+      ],
+      "js": ["src/content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

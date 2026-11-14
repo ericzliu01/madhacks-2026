@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 13px system-ui, sans-serif; width: 300px; margin: 12px; color: #1b1b1b; }
+    h1 { font-size: 14px; margin: 0 0 8px; }
+    label { display: block; margin: 8px 0 2px; font-weight: 600; }
+    input[type=text], select { width: 100%; box-sizing: border-box; padding: 4px; }
+    .row { display: flex; align-items: center; gap: 6px; margin: 8px 0; }
+    .row label { margin: 0; font-weight: 500; }
+    .warn { color: #8a4b00; font-size: 11px; margin: 2px 0 0 22px; }
+    .btns { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    button { padding: 5px 8px; cursor: pointer; }
+    #stats { margin-top: 10px; font-size: 11px; color: #555; word-break: break-all; }
+    #rec { font-weight: 700; }
+    #rec.on { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <h1>Databricks UX Telemetry <span id="rec"></span></h1>
+
+  <div class="row">
+    <input type="checkbox" id="enabled">
+    <label for="enabled">I consent to recording my interactions on Databricks pages</label>
+  </div>
+
+  <label for="participantId">Participant ID (pseudonym, not your name)</label>
+  <input type="text" id="participantId" placeholder="e.g. P01">
+
+  <label for="sessionType">Session type</label>
+  <select id="sessionType">
+    <option value="human">human</option>
+    <option value="agent">agent (e.g. Claude in Chrome)</option>
+  </select>
+
+  <label for="taskId">Task ID</label>
+  <input type="text" id="taskId" placeholder="e.g. T3-filter-chart">
+
+  <div class="row">
+    <input type="checkbox" id="captureText">
+    <label for="captureText">Store raw prompt text</label>
+  </div>
+  <div class="warn">Off by default: only prompt length and a salted hash are stored.</div>
+
+  <div class="btns">
+    <button id="newSession">New session</button>
+    <button id="export">Export JSONL</button>
+    <button id="clear">Clear data</button>
+  </div>
+  <div id="stats"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
