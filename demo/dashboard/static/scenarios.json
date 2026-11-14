@@ -1,0 +1,42 @@
+[
+ {
+  "id": "T1",
+  "category": "retrieve_value",
+  "prompt": "How many trips were taken in Brooklyn on 2026-03-15?",
+  "answer": 2128,
+  "tolerance": 0,
+  "type": "number"
+ },
+ {
+  "id": "T2",
+  "category": "compute_derived_value",
+  "prompt": "Roughly what percentage higher are Brooklyn's total trips than Queens' total trips? (number, in %)",
+  "answer": 8.5,
+  "tolerance": 2.0,
+  "type": "number"
+ },
+ {
+  "id": "T3",
+  "category": "find_extremum",
+  "prompt": "On which date did Queens have its lowest daily trips? (YYYY-MM-DD)",
+  "answer": "2026-03-18",
+  "tolerance": 0,
+  "type": "text"
+ },
+ {
+  "id": "T4",
+  "category": "filter",
+  "prompt": "Filter the dashboard to the Bronx only. What is the Avg fare shown in the KPI card? (number)",
+  "answer": 21.76,
+  "tolerance": 0.05,
+  "type": "number"
+ },
+ {
+  "id": "T5",
+  "category": "determine_range",
+  "prompt": "What is the range (max minus min) of Manhattan's daily trips over the month? (number)",
+  "answer": 1760,
+  "tolerance": 150,
+  "type": "number"
+ }
+]
