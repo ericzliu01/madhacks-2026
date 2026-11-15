@@ -57,3 +57,18 @@ Free Edition apps stop 24 hours after deploy: redeploy before demoing. Events bu
 ./scripts/build-app.sh && python3 databricks/app/app.py     # http://127.0.0.1:8000/?study=1&pid=P01&st=human&v=1
 ```
 Events go to `databricks/app/events/` as one JSONL file per flush. Set `EVENTS_VOLUME_PATH` to write to a Volume instead.
+
+## Running the pipeline from the demo console (`/demo` > Raw to gold > Run pipeline)
+The console runs `sql/ux_pipeline_all.sql` (copied in by `scripts/build-app.sh`) one statement at a time on the app's
+SQL warehouse and shows each layer's counts as it finishes. Table comments (05) are skipped there; they change no data.
+
+The pipeline replaces tables you own, so it should run **as you**:
+1. Workspace settings > Previews: turn on user authorization for Databricks Apps if it is listed as a preview.
+2. Compute > Apps > your app > Edit > **User authorization**: add the scope `sql`. Save, redeploy, and open the app
+   once to consent.
+3. The console then says "as you (user authorization)" next to the Run button.
+
+Without user authorization it runs as the app's service principal, which may not replace tables it doesn't own. The
+run then stops at the first statement it is not allowed to run and shows the error. (Not verified on Free Edition: if
+user authorization isn't offered there, run `ux_pipeline_all.sql` in the SQL editor instead; the console's counts still
+show the result.)

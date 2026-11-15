@@ -7,6 +7,7 @@
   GET  /healthz    "ok"
   GET  /status     sink, counts, last upload error
   GET  /results    v1 vs v2 results page (pages/results.html), data from GET /api/results
+  GET  /api/pipeline, POST /api/pipeline/run   run sql/ux_pipeline_all.sql statement by statement (demo console)
   GET  /demo       presenter console for the live demo (pages/demo.html); GET /api/demo-config gives the workspace host
   GET  /api/results  gold tables through a SQL warehouse (DATABRICKS_WAREHOUSE_ID) + the designer's proposals
 
@@ -30,7 +31,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # chatbot.py sits next to this file (also under python -I)
-import chatbot  # noqa: E402
+import chatbot
+import pipeline  # noqa: E402
 
 HERE = Path(__file__).parent
 MAX_BODY = 1_000_000
@@ -220,6 +222,28 @@ class Handler(SimpleHTTPRequestHandler):
     bot = None
     latency_scale = 1.0
     proposals_path = HERE / "proposals"
+    pipeline = None  # pipeline.PipelineRun, set in make_server
+
+    def user_reader(self):
+        """(reader, who) for running the pipeline: the signed-in user's token when the app has user authorization
+        (header X-Forwarded-Access-Token, scope sql), else the app's service principal."""
+        tok = self.headers.get("X-Forwarded-Access-Token")
+        if tok and self.gold is not None:
+            from databricks.sdk import WorkspaceClient
+            host = os.environ.get("DATABRICKS_HOST", "")
+            client = WorkspaceClient(host=host if host.startswith("http") else "https://" + host, token=tok, auth_type="pat")
+            return GoldReader(self.gold.warehouse_id, self.gold.schema, client=client), "you (user authorization)"
+        return self.gold, "the app's service principal"
+
+    def api_pipeline(self, run=False):
+        if self.gold is None:
+            return self.send_json({"status": "error", "error": "No SQL warehouse configured (see README)."})
+        reader, who = self.user_reader()
+        if run:
+            self.pipeline.start(reader, who)
+        out = dict(self.pipeline.status())
+        out["would_run_as"], out["n_statements"] = who, len([p for p in self.pipeline.plan() if p[0] != "comments"])
+        self.send_json(out)
 
     def send_json(self, obj, code=200):
         body = json.dumps(obj).encode()
@@ -241,6 +265,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_json(out)
 
     def do_POST(self):
+        if self.path == "/api/pipeline/run":  # demo console: rebuild bronze/silver/gold now
+            return self.api_pipeline(run=True)
         if self.path not in ("/events", "/chat"):
             self.send_error(404)
             return
@@ -277,6 +303,8 @@ class Handler(SimpleHTTPRequestHandler):
                                    "warehouse": bool(self.gold)})
         if route == "/api/results":
             return self.api_results()
+        if route == "/api/pipeline":
+            return self.api_pipeline()
         if route == "/api/demo-config":  # workspace host for the demo console's links (no secrets)
             return self.send_json({"workspace": os.environ.get("DATABRICKS_HOST", "")})
         if route in ("/results", "/results/", "/demo", "/demo/"):
@@ -306,6 +334,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def make_server(collector, host="127.0.0.1", port=8000, static=None, gold=None):
     Handler.collector, Handler.gold = collector, gold
+    Handler.pipeline = pipeline.PipelineRun(gold.schema if gold else os.environ.get("GOLD_SCHEMA", "workspace.ux_telemetry"))
     return ThreadingHTTPServer((host, port), partial(Handler, directory=str(static or HERE / "static")))
 
 

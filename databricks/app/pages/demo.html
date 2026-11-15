@@ -53,6 +53,23 @@
   .frame { display:grid; grid-template-rows:auto 1fr; min-height:0; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .frame .cap { font-size:12px; color:var(--muted); padding:4px 10px; border-bottom:1px solid var(--line); }
   iframe { border:0; width:100%; height:100%; background:#fff; }
+  .pipe { overflow:auto; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+  .flow { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; align-items:stretch; margin-bottom:14px; }
+  .layer { border:2px solid var(--line); border-radius:10px; padding:10px 12px; position:relative; background:#fbfaf8; transition:border-color .2s, background .2s; }
+  .layer:not(:last-child)::after { content:'\2192'; position:absolute; right:-17px; top:40%; color:var(--muted); font-size:16px; }
+  .layer h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .layer .big { font:600 22px/1.1 system-ui; font-variant-numeric:tabular-nums; }
+  .layer .small { font-size:12px; color:var(--muted); margin-top:4px; }
+  .layer.run { border-color:var(--accent); background:#eaf2fa; } .layer.done { border-color:var(--ok); }
+  .layer.fail { border-color:var(--bad); background:var(--badbg); }
+  .layer table { font-size:12px; border-collapse:collapse; width:100%; margin-top:4px; }
+  .layer td { padding:1px 0; } .layer td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .runbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+  .stmts { display:flex; flex-wrap:wrap; gap:4px; }
+  .stmt { font-size:11px; padding:2px 7px; border-radius:99px; background:#eef0f1; color:var(--muted); }
+  .stmt.running { background:#eaf2fa; color:var(--accent); font-weight:600; } .stmt.done { background:var(--okbg); color:var(--ok); }
+  .stmt.failed { background:var(--badbg); color:var(--bad); font-weight:600; }
+  @media (max-width:1100px) { .flow { grid-template-columns:1fr 1fr; } .layer::after { display:none; } }
   .ext { display:grid; place-items:center; text-align:center; color:var(--muted); padding:30px; }
   .ext .btn { font-size:15px; padding:10px 18px; margin-top:10px; }
   kbd { font:11px ui-monospace, monospace; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 4px; }
@@ -127,9 +144,11 @@
            'Open the <b>&hellip;</b> menu: the borough filter hides there.', 'Switch to <b>/status</b>: the written count goes up.'],
       stage: [{ label: 'Dashboard v1', src: dash(1) }, { label: '/status', src: '/status' }] },
     { t: 60, d: 40, title: 'Raw to gold',
-      do: ['Catalog Explorer: Volume <code>raw_events</code>, then <code>silver_goals</code>, then <code>gold_element_friction</code>.', 'Point at a column comment.'],
+      do: ['Click <b>Run pipeline</b>: the recorded sessions go from the Volume through bronze, silver and gold on the SQL warehouse (about 1-2 min).',
+           'Watch each layer light up; gold shows the human v1 goals and the top friction elements.',
+           'Optional: Catalog Explorer to show the tables and a column comment.', 'Then <b>Open Genie</b>: it answers from these gold tables.'],
       links: [['Catalog: ux_telemetry', 'catalog'], ['Volume: raw_events', 'volume'], ['SQL editor', 'sql']],
-      stage: [{ label: 'Catalog Explorer', ext: 'catalog' }, { label: '/status', src: '/status' }] },
+      stage: [{ label: 'Run pipeline', panel: 'pipeline' }, { label: 'Catalog Explorer', ext: 'catalog' }, { label: '/status', src: '/status' }] },
     { t: 100, d: 40, title: 'Genie',
       questions: [['Which element gets the most rage clicks in v1?', 'benchmarked'], ['What do users rage-click?', 'benchmarked'],
                   ['For human sessions on v1, which goal had the lowest success rate?', 'not benchmarked: rehearse first'],
@@ -176,6 +195,7 @@
     const frame = (src, cap) => `<div class="frame"><div class="cap">${esc(cap)}</div><iframe src="${esc(src)}" title="${esc(cap)}"></iframe></div>`;
     if (st.pair) fr.innerHTML = frame(st.pair[0], 'v1 (as tested by people)') + frame(st.pair[1], 'v3 = build-1: v1 + approved P1, P5');
     else if (st.src) fr.innerHTML = frame(st.src, st.label);
+    else if (st.panel === 'pipeline') { fr.innerHTML = '<div class="pipe" id="pipe">Loading&hellip;</div>'; pollPipe(); }
     else {
       // Workspace pages refuse to load inside another site, so they open in their own tab (reused on every click).
       const u = ext[st.ext]();
@@ -235,6 +255,68 @@
       el.textContent = `${trial.pid} · ` + (fin ? 'all 3 goals finished: counts as a human trial' : n && n.textContent ? 'goal ' + n.textContent : 'not started');
     } catch (err) { /* frame still loading */ }
   }, 1000);
+
+  // ---------------------------------------------------------------- pipeline (Volume -> bronze -> silver -> gold -> Genie)
+  let pipe = null, pipeTimer = null;
+  const num = (x) => (x == null ? '–' : Number(x).toLocaleString());
+  const pctv = (x) => (x == null ? '–' : Math.round(x * 100) + '%');
+  function snapFor(layer) {  // the freshest snapshot that reflects this layer
+    const sn = (pipe && pipe.snapshots) || {};
+    return sn.after || sn[layer] || sn.before || {};
+  }
+  function renderPipe() {
+    const el = $('pipe'); if (!el || !pipe) return;
+    const steps = pipe.steps || [], running = pipe.status === 'running';
+    const cur = steps.find((x) => x.status === 'running'), failed = steps.find((x) => x.status === 'failed');
+    const layerState = (L) => {
+      const mine = steps.filter((x) => x.stage === L);
+      if (!mine.length) return pipe.status === 'done' ? 'done' : '';
+      if (mine.some((x) => x.status === 'failed')) return 'fail';
+      if (cur && cur.stage === L) return 'run';
+      return mine.every((x) => x.status === 'done') ? 'done' : '';
+    };
+    const c = ((snapFor('bronze').counts || [])[0]) || {}, cs = ((snapFor('silver').counts || [])[0]) || {};
+    const gold = snapFor('gold').gold || [], fr = snapFor('gold').friction || [];
+    const genie = ext.genie();
+    const elapsed = pipe.started ? Math.round(((pipe.finished || Date.now() / 1000) - pipe.started)) : null;
+    el.innerHTML = `
+      <div class="runbar">
+        <button class="primary" id="piperun" ${running ? 'disabled' : ''}>${running ? 'Running&hellip;' : pipe.status === 'done' ? 'Run again' : 'Run pipeline'}</button>
+        <span class="meta" style="margin:0">${pipe.n_statements || 0} statements on the SQL warehouse, as <b>${esc(pipe.as || pipe.would_run_as || '?')}</b>
+        ${elapsed != null ? ` &middot; ${running ? 'running' : pipe.status} ${elapsed}s` : ''}${cur ? ` &middot; now: <code>${esc(cur.label)}</code>` : ''}</span>
+      </div>
+      ${pipe.error ? `<div class="warnbox" style="background:var(--badbg);color:var(--bad)">${esc(pipe.error)}</div>` : ''}
+      <div class="flow">
+        <div class="layer ${pipe.status === 'running' || pipe.status === 'done' ? 'done' : ''}"><h4>Volume</h4>
+          <div class="big">${num(c.bronze_files)}</div><div class="small">raw JSONL files (one per session upload)</div></div>
+        <div class="layer ${layerState('bronze')}"><h4>Bronze</h4>
+          <div class="big">${num(c.bronze_events)}</div><div class="small">events, as recorded<br>${num(c.bronze_human_sessions)} human sessions (incl. excluded)</div></div>
+        <div class="layer ${layerState('silver')}"><h4>Silver &middot; human v1</h4>
+          <div class="big">${num(cs.silver_human_v1_sessions)}</div><div class="small">sessions after dedupe + exclusions<br>${num(cs.silver_human_v1_events)} events &middot; ${num(cs.silver_human_v1_goals)} goals</div></div>
+        <div class="layer ${layerState('gold')}"><h4>Gold &middot; human v1</h4>
+          <table>${gold.map((g) => `<tr><td>${esc(g.goal_id)}</td><td class="n">${pctv(g.success_rate)} of ${num(g.n_goals)}</td></tr>`).join('') || '<tr><td class="small">not built yet</td></tr>'}</table>
+          <div class="small">${fr.map((f) => `${esc(f.uxid)}: ${num(f.n_dead_clicks)} dead`).join('<br>')}</div></div>
+        <div class="layer ${pipe.status === 'done' ? 'done' : ''}"><h4>Genie</h4>
+          <div class="small" style="margin-bottom:8px">Answers in plain English from these gold tables.</div>
+          ${genie ? `<a class="btn" href="${esc(genie)}" target="db-genie" rel="noopener">Open Genie &#8599;</a>` : '<span class="small">Set the Genie URL in Settings</span>'}</div>
+      </div>
+      <div class="stmts">${steps.map((x) => `<span class="stmt ${x.status}" title="${esc(x.stage)}${x.ms != null ? ' · ' + (x.ms / 1000).toFixed(1) + 's' : ''}${x.error ? ' · ' + esc(x.error) : ''}">${esc(x.label)}</span>`).join('')}</div>
+      <p class="meta" style="margin-top:10px">Silver drops excluded sessions, unfinished demo trials and demo-console clicks. Table comments are left out of this run (they don't change data); the full SQL file also sets them.</p>`;
+  }
+  async function pollPipe(run) {
+    clearTimeout(pipeTimer);
+    if (!$('pipe')) return;
+    try {
+      pipe = await (await fetch(run ? '/api/pipeline/run' : '/api/pipeline', { method: run ? 'POST' : 'GET', cache: 'no-store' })).json();
+    } catch (e) { pipe = { status: 'error', error: 'Could not reach the app: ' + e }; }
+    renderPipe();
+    pipeTimer = setTimeout(() => pollPipe(), pipe.status === 'running' ? 1000 : 5000);
+  }
+  $('frames').addEventListener('click', (e) => {
+    if (e.target.id !== 'piperun') return;
+    if (pipe && pipe.status === 'done' && !confirm('Rebuild bronze, silver and gold again?')) return;
+    e.target.disabled = true; pollPipe(true);
+  });
 
   // ---------------------------------------------------------------- timer
   let started = null, acc = 0;

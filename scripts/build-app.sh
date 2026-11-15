@@ -5,4 +5,5 @@ cd "$(dirname "$0")/.."
 ./scripts/sync-core.sh >/dev/null
 rm -rf databricks/app/static && mkdir -p databricks/app/static
 cp demo/dashboard/static/* databricks/app/static/
+mkdir -p databricks/app/sql && cp databricks/sql/ux_pipeline_all.sql databricks/app/sql/  # run from the demo console
 echo "built databricks/app/static ($(ls databricks/app/static | wc -l | tr -d ' ') files)"
