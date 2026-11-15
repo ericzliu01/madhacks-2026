@@ -4,6 +4,9 @@
   GET  /...        static/ (dashboard, scenarios.json, data.json, SDK files)
   POST /events     JSON array of events -> buffered -> one JSONL file per flush in the Volume
   GET  /healthz    "ok"
+  GET  /status     sink, counts, last upload error
+  GET  /results    v1 vs v2 results page (pages/results.html), data from GET /api/results
+  GET  /api/results  gold tables through a SQL warehouse (DATABRICKS_WAREHOUSE_ID) + the designer's proposals
 
 Where events go (first match wins):
   EVENTS_VOLUME_PATH set  -> Databricks Files API (databricks-sdk, app service principal credentials), e.g.
@@ -105,8 +108,108 @@ class Collector:
         self.flush()
 
 
+NUMERIC = {"BYTE", "SHORT", "INT", "LONG", "FLOAT", "DOUBLE", "DECIMAL"}
+INTEGER = {"BYTE", "SHORT", "INT", "LONG"}
+
+
+class GoldReader:
+    """Reads the gold tables through a SQL warehouse (Statement Execution API, app service principal credentials).
+
+    The service principal needs USE CATALOG, USE SCHEMA, SELECT on the gold tables and CAN USE on the warehouse.
+    `client` is a WorkspaceClient (injectable for tests). Results are cached for `ttl` seconds so a page refresh
+    does not start a warehouse query each time.
+    """
+
+    def __init__(self, warehouse_id, schema, client=None, ttl=30.0):
+        self.warehouse_id, self.schema, self.ttl = warehouse_id, schema, ttl
+        if client is None:
+            from databricks.sdk import WorkspaceClient
+            client = WorkspaceClient()
+        self.client = client
+        self._cache, self._at, self.lock = None, 0.0, threading.Lock()
+
+    def queries(self):
+        s = self.schema
+        return {
+            "tasks": f"SELECT session_type, app_version, task_id, task_category, n_trials, success_rate, abandon_rate, "
+                     f"avg_duration_ms, overtrust_rate FROM {s}.gold_task_summary "
+                     f"ORDER BY session_type, task_id, app_version",
+            "elements": f"SELECT session_type, app_version, uxid, n_clicks, n_rage_clicks, n_dead_clicks, n_sessions, "
+                        f"rage_per_click FROM {s}.gold_element_friction "
+                        f"WHERE n_rage_clicks > 0 OR n_dead_clicks > 0 "
+                        f"ORDER BY session_type, n_rage_clicks DESC, n_dead_clicks DESC LIMIT 40",
+        }
+
+    def query(self, sql):
+        sx = self.client.statement_execution
+        r = sx.execute_statement(statement=sql, warehouse_id=self.warehouse_id, wait_timeout="30s")
+        deadline = time.time() + 90  # serverless warehouses can take a while to start
+        while _state(r) in ("PENDING", "RUNNING") and time.time() < deadline:
+            time.sleep(2)
+            r = sx.get_statement(r.statement_id)
+        state = _state(r)
+        if state != "SUCCEEDED":
+            err = getattr(getattr(r, "status", None), "error", None)
+            raise RuntimeError(f"statement {state}: {getattr(err, 'message', err)}")
+        cols = r.manifest.schema.columns
+        rows = (r.result.data_array if r.result else None) or []
+        return [{c.name: _convert(v, c) for c, v in zip(cols, row)} for row in rows]
+
+    def results(self):
+        with self.lock:
+            if self._cache is None or time.time() - self._at > self.ttl:
+                self._cache = {k: self.query(q) for k, q in self.queries().items()}
+                self._at = time.time()
+            return self._cache
+
+
+def _state(r):
+    st = getattr(getattr(r, "status", None), "state", None)
+    return getattr(st, "value", st)
+
+
+def _convert(v, col):
+    if v is None:
+        return None
+    t = getattr(col.type_name, "value", col.type_name)
+    if t in INTEGER:
+        return int(v)
+    if t in NUMERIC:
+        return float(v)
+    return v
+
+
+def load_proposals(path):
+    """The Claude designer's latest proposal file (databricks/designer/propose.py writes it), or None."""
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return None
+
+
 class Handler(SimpleHTTPRequestHandler):
     collector = None
+    gold = None
+    proposals_path = HERE / "proposals" / "latest.json"
+
+    def send_json(self, obj, code=200):
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def api_results(self):
+        out = {"proposals": load_proposals(self.proposals_path), "configured": self.gold is not None}
+        if self.gold is None:
+            out["error"] = "No SQL warehouse configured: add a SQL warehouse resource to the app (see README)."
+            return self.send_json(out)
+        try:
+            out.update(self.gold.results(), schema=self.gold.schema)
+        except Exception as ex:
+            out["error"] = f"{type(ex).__name__}: {ex}"[:400]
+        self.send_json(out)
 
     def do_POST(self):
         if self.path != "/events":
@@ -129,13 +232,18 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path.split("?")[0] == "/status":  # where events go and whether uploads work (no secrets)
+        route = self.path.split("?")[0]
+        if route == "/status":  # where events go and whether uploads work (no secrets)
             c = self.collector
-            body = json.dumps({"sink": type(c.sink).__name__, "where": c.sink.where(), "buffered": len(c.buf),
-                               "written": c.written, "flush_errors": c.errors,
-                               "last_error": c.last_error}).encode()
+            return self.send_json({"sink": type(c.sink).__name__, "where": c.sink.where(), "buffered": len(c.buf),
+                                   "written": c.written, "flush_errors": c.errors, "last_error": c.last_error,
+                                   "warehouse": bool(self.gold)})
+        if route == "/api/results":
+            return self.api_results()
+        if route in ("/results", "/results/"):
+            body = (HERE / "pages" / "results.html").read_bytes()
             self.send_response(200)
-            self.send_header("content-type", "application/json")
+            self.send_header("content-type", "text/html; charset=utf-8")
             self.send_header("content-length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -157,9 +265,14 @@ class Handler(SimpleHTTPRequestHandler):
         pass
 
 
-def make_server(collector, host="127.0.0.1", port=8000, static=None):
-    Handler.collector = collector
+def make_server(collector, host="127.0.0.1", port=8000, static=None, gold=None):
+    Handler.collector, Handler.gold = collector, gold
     return ThreadingHTTPServer((host, port), partial(Handler, directory=str(static or HERE / "static")))
+
+
+def build_gold():
+    wh = os.environ.get("DATABRICKS_WAREHOUSE_ID")
+    return GoldReader(wh, os.environ.get("GOLD_SCHEMA", "workspace.ux_telemetry")) if wh else None
 
 
 def build_sink():
@@ -173,8 +286,10 @@ if __name__ == "__main__":
     sink = build_sink()
     col = Collector(sink, float(os.environ.get("FLUSH_SECS", 3)), int(os.environ.get("FLUSH_EVENTS", 200)))
     col.start()
-    srv = make_server(col, host, port)
-    print(f"dashboard on {host}:{port}  events -> {sink.where()}", flush=True)
+    gold = build_gold()
+    srv = make_server(col, host, port, gold=gold)
+    print(f"dashboard on {host}:{port}  events -> {sink.where()}  results -> "
+          f"{'warehouse ' + gold.warehouse_id if gold else 'no warehouse configured'}", flush=True)
     try:
         srv.serve_forever()
     finally:

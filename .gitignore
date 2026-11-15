@@ -4,3 +4,4 @@ events.jsonl
 .DS_Store
 databricks/data/
 databricks/app/events/
+__pycache__/

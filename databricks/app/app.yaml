@@ -6,3 +6,9 @@ env:
     value: "/Volumes/workspace/ux_telemetry/raw_events/raw"
   - name: FLUSH_SECS
     value: "3"
+  # SQL warehouse for /results: add a "SQL warehouse" resource to the app (permission: Can use) with the resource
+  # key sql-warehouse; the app runtime then fills this in. Without it /results shows a setup message.
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: GOLD_SCHEMA
+    value: "workspace.ux_telemetry"

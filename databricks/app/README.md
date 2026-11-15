@@ -28,6 +28,20 @@ Serves the planted-flaw "Taxi Ops" dashboard (v1 flawed, v2 fixed) and writes th
 5. Re-run `01b_bronze_load.sql` (it skips files already in bronze), then `02`, `03`.
 6. Debug: open `<app-url>/status` to see the sink, buffered/written counts, and the last upload error.
 
+## Results page (`/results`)
+Shows v1 vs v2 per task, the elements with rage/dead clicks, and the designer's proposals, read from the gold tables
+through a SQL warehouse. Human and simulated rows are always shown separately and labeled. One-time setup:
+1. App page -> Edit -> **App resources** -> Add resource -> **SQL warehouse**, pick your warehouse, permission
+   **Can use**, resource key **`sql-warehouse`** (app.yaml reads it as `DATABRICKS_WAREHOUSE_ID`). Do this *before*
+   deploying this version: app.yaml references the resource.
+2. In the SQL editor (replace the UUID with your app's client_id):
+   ```sql
+   GRANT SELECT ON SCHEMA workspace.ux_telemetry TO `<client-id>`;
+   ```
+   (USE CATALOG and USE SCHEMA are already granted for the Volume.)
+3. Redeploy and open `<app-url>/results`. Errors from the warehouse (e.g. PERMISSION_DENIED) are shown on the page.
+   `/status` reports `"warehouse": true` once the resource is wired up.
+
 Free Edition apps stop 24 hours after deploy: redeploy before demoing. Events buffer for `FLUSH_SECS` (3 s) before upload.
 
 ## Run locally (no Databricks)
