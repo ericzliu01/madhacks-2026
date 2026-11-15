@@ -37,8 +37,11 @@ You analyze UX telemetry from usability trials of a dashboard. Each trial is one
 Chat-assistant study (tables gold_goal_*, gold_turn_metrics, gold_bot_behavior):
 - A goal is an open-ended need worked on with a dashboard assistant over several turns. A turn is one prompt and its reply.
 - The assistant is a scripted stub with planted behaviors, flawed in v1 and fixed in v2: B1 confident wrong percent,
-  B2 ignores the borough the first time, B3 slow reply with no progress indicator, B4 chat entry point hidden,
-  B5 ignores the chart point the user selected. "correct" on a turn is testbed ground truth about the stub's reply.
+  B2 ignores the borough the first time, B3 slow reply with no progress indicator, B5 ignores the chart point the
+  user selected. B4 (chat entry point hidden in v1) was retired in design revision 2: from then on the assistant is
+  open in both versions, and v1 instead has F5, a log-scale y axis on the Daily trips line chart.
+- session_type values ending in _r1 (human_r1, agent_r1) were recorded on design revision 1 (B4 active, linear line
+  chart). Never pool them with human or agent rows; report them separately and say which design they used. "correct" on a turn is testbed ground truth about the stub's reply.
 - To compare behaviors, use gold_bot_behavior and compare v1 with v2 for the same behavior. B4 has only
   avg_ms_to_chat_open and never_opened_rate (per session); its turn columns are NULL by design.
 - "Which behavior hurts most": compare the v1 minus v2 difference in goal_abandon_rate, wrong_answer_rate and

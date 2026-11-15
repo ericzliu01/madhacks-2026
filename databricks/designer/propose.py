@@ -50,7 +50,7 @@ BEHAVIORS = {
     "B1": "derived values (percent difference) stated confidently but computed from the truncated v1 axis: wrong",
     "B2": "ignores the borough the first time a goal asks a borough-specific aggregate, answers for all boroughs",
     "B3": "slow reply (7 s) with no progress indicator",
-    "B4": "chat entry point is a small, unlabeled, low-contrast icon",
+    "B4": "retired in design revision 2 (the assistant is open in both versions); r1 data only: chat entry point was a small, unlabeled icon",
     "B5": "ignores the chart point the user selected when asked why it looks odd",
 }
 FLAWS = {
@@ -58,6 +58,7 @@ FLAWS = {
     "F2": "line chart uses four near-identical muted colors and a tiny pale legend",
     "F3": "borough filter only reachable through the '...' menu",
     "F4": "Avg fare KPI card looks clickable (pointer cursor, hover ring) but does nothing",
+    "F5": "line chart (Daily trips) uses a log-scale y axis in v1 (design revision 2), compressing gaps and dips",
 }
 TABLES = {  # table -> (key columns, n columns)
     "gold_version_comparison": (["session_type", "task_id", "task_category"], ["n_trials_v1", "n_trials_v2"]),

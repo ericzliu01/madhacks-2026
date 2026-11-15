@@ -39,13 +39,15 @@ PANEL = "aside:study-panel"
 
 
 class Session:
+    APP = "taxi-ops-demo-v{v}"  # task sessions: design as of revision 1 (generated data, not relabelled)
+
     def __init__(self, rnd, sid, version, pid, t0):
         self.r, self.sid, self.v, self.pid, self.t = rnd, sid, version, pid, t0
         self.events, self.task, self.cat = [], None, None
 
     def ev(self, type, gap=(80, 900), **kw):
         self.t += self.r.randint(*gap)
-        e = {"t": self.t, "recv_t": self.t + 40, "sid": self.sid, "st": "simulated", "app": f"taxi-ops-demo-v{self.v}",
+        e = {"t": self.t, "recv_t": self.t + 40, "sid": self.sid, "st": "simulated", "app": self.APP.format(v=self.v),
              "task": self.task, "tcat": self.cat, "pid": self.pid, "page": f"dashboard_v{self.v}", "path": "/", "type": type}
         e.update(kw)
         self.events.append(e)
@@ -119,9 +121,10 @@ def run_trial(s, scen):
 # Participant choices per version. These numbers ARE the hypotheses: the pipeline should recover them, nothing more.
 CHAT = {
     # paste_goal: first prompt is the goal text pasted into the chat (same in both versions: not a planted effect)
-    1: {"paste_goal": 0.3, "never_find_chat": 0.15, "find_chat_s": 40, "verify": 0.35, "notice_b1": 0.5, "notice_b2": 0.75,
+    # revision 2: the assistant is open from the start in BOTH versions (B4 retired), so no chat-finding parameters
+    1: {"paste_goal": 0.3, "verify": 0.35, "notice_b1": 0.5, "notice_b2": 0.75,
         "resend_b3": 0.45, "abandon_b3": 0.25, "find_anomaly": 0.55, "repair_b5": 0.6},
-    2: {"paste_goal": 0.3, "never_find_chat": 0.0, "find_chat_s": 0, "verify": 0.2, "notice_b1": 0.0, "notice_b2": 0.0,
+    2: {"paste_goal": 0.3, "verify": 0.2, "notice_b1": 0.0, "notice_b2": 0.0,
         "resend_b3": 0.05, "abandon_b3": 0.03, "find_anomaly": 0.8, "repair_b5": 0.6},
 }
 ASK = {
@@ -137,6 +140,8 @@ WHY = ["Why did this drop?", "why is this so low?", "what happened here?"]
 
 
 class ChatSession(Session):
+    APP = "taxi-ops-demo-r2-v{v}"  # design revision 2: assistant open in both versions, log axis on the v1 line chart
+
     def __init__(self, rnd, sid, version, pid, t0):
         super().__init__(rnd, sid, version, pid, t0)
         self.goal, self.gcats, self.turn, self.prev_text, self.prev_intents = None, None, None, None, []
@@ -304,12 +309,8 @@ def make_chat_session(rnd, sid, v, pid, t0):
     s = ChatSession(rnd, sid, v, pid, t0)
     s.ev("session_start", w=1280, h=800, dpr=2)
     s.ev("consent", state="prompt_text")
-    P = CHAT[v]
-    if v == 2:
-        s.ev("chat_open", how="auto")
-        open_at = s.t
-    else:
-        open_at = None if rnd.random() < P["never_find_chat"] else s.t + int(rnd.expovariate(1 / (P["find_chat_s"] * 1000)))
+    s.ev("chat_open", how="auto")  # revision 2: open in both versions
+    open_at = s.t
     for g in GOALS:
         run_goal(s, g, open_at)
         if open_at is not None and open_at <= s.t:

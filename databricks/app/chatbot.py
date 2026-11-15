@@ -12,7 +12,8 @@ Planted behaviors: flawed in v1, fixed in v2 (mirroring the chart flaws F1-F4):
   B2  filter misparse. v1 ignores the borough the FIRST time a goal asks a borough-specific aggregate (average fare,
       total trips) and answers for all boroughs, so the user has to rephrase; v2 always applies the borough.
   B3  slow reply. Extremum questions take 7 s in v1 with no progress indicator; 1.5 s with an indicator in v2.
-  B4  chat entry point hidden (v1: collapsed icon; v2: open panel). Lives in the page, not here.
+  B4  (retired in design revision 2: the assistant is open in both versions; in revision 1 the v1 entry point was a
+      small unlabeled icon). Lived in the page, not here.
   B5  selection ignored. Asked "why" with a chart point selected, v1 ignores the selection and gives a generic
       weekend explanation; v2 explains the selected point.
 

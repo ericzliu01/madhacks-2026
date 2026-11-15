@@ -10,7 +10,12 @@ SELECT session_id, session_type, app_id, app_version, participant_id, task_id, t
        goal_id, goal_cats, turn_id, latency_ms, behavior, answer_id, correct, intent, feedback, mark_x, mark_y, overlap,
        had_selection, goal_sim, pasted
 FROM (
-  SELECT sid AS session_id, st AS session_type, app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
+  SELECT sid AS session_id,
+         -- Design revision 2 (2026-11-15): log y axis on the v1 line chart (F5), assistant visible in both versions
+         -- (B4 retired). Human and agent sessions recorded on the earlier design get their own session type
+         -- (human_r1, agent_r1) so they are never pooled with revision-2 data. Simulated data is generated, not recorded.
+         CASE WHEN st IN ('human', 'agent') AND app NOT LIKE '%-r2-%' THEN st || '_r1' ELSE st END AS session_type,
+         app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
          task AS task_id, tcat AS task_category, page, path, type AS event_type,
          CAST(t AS BIGINT) AS ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
          status, satisfaction, answer, chart, series, text AS prompt_text, how, chars, words, hash AS prompt_hash, ctx, combo, name,

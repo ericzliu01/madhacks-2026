@@ -62,7 +62,12 @@ SELECT session_id, session_type, app_id, app_version, participant_id, task_id, t
        goal_id, goal_cats, turn_id, latency_ms, behavior, answer_id, correct, intent, feedback, mark_x, mark_y, overlap,
        had_selection, goal_sim, pasted
 FROM (
-  SELECT sid AS session_id, st AS session_type, app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
+  SELECT sid AS session_id,
+         -- Design revision 2 (2026-11-15): log y axis on the v1 line chart (F5), assistant visible in both versions
+         -- (B4 retired). Human and agent sessions recorded on the earlier design get their own session type
+         -- (human_r1, agent_r1) so they are never pooled with revision-2 data. Simulated data is generated, not recorded.
+         CASE WHEN st IN ('human', 'agent') AND app NOT LIKE '%-r2-%' THEN st || '_r1' ELSE st END AS session_type,
+         app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
          task AS task_id, tcat AS task_category, page, path, type AS event_type,
          CAST(t AS BIGINT) AS ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
          status, satisfaction, answer, chart, series, text AS prompt_text, how, chars, words, hash AS prompt_hash, ctx, combo, name,
@@ -473,6 +478,6 @@ COMMENT ON TABLE workspace.ux_telemetry.gold_goal_metrics IS
 COMMENT ON TABLE workspace.ux_telemetry.gold_goal_summary IS
   'Per session_type, design version and goal: success, abandonment, turns, time to first prompt, over-trust (share of goals that showed a wrong answer) and drop-off (avg_failed_turns_at_dropoff = k). Small samples: descriptive only.';
 COMMENT ON TABLE workspace.ux_telemetry.gold_bot_behavior IS
-  'Per planted assistant behavior (B1-B5) and design version (v1 flawed, v2 fixed): wrong-answer, reformulation, repair and verification rates, latency, and outcomes of the goals where the behavior fired. B4 (chat entry point hidden in v1) reports avg_ms_to_chat_open and never_opened_rate per session instead.';
+  'Per planted assistant behavior (B1-B5) and design version (v1 flawed, v2 fixed): wrong-answer, reformulation, repair and verification rates, latency, and outcomes of the goals where the behavior fired. B4 (chat entry point hidden in v1) reports avg_ms_to_chat_open and never_opened_rate per session; it was retired in design revision 2 (assistant open in both versions), so revision-2 rows should show no v1/v2 difference.';
 COMMENT ON COLUMN workspace.ux_telemetry.gold_turn_metrics.pasted_goal IS
   '1 if the participant pasted into the chat box and the prompt has Jaccard similarity >= 0.8 with the goal text (the goal was handed to the assistant rather than phrased by the participant). Columns ending in _excl_pasted in the other chat tables repeat a metric without these.';

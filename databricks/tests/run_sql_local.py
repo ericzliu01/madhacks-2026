@@ -61,8 +61,10 @@ human_src = sorted(sessions.glob("*.jsonl"))[0]
 hrows = []
 for line in human_src.read_text().splitlines():
     e = json.loads(line)
-    e.update(sid="human-check", st="human", _source_file="human-check.jsonl")
+    e.update(sid="human-check", st="human", _source_file="human-check.jsonl",
+             app=e["app"].replace("taxi-ops-demo-", "taxi-ops-demo-r2-"))  # current design revision
     hrows.append([e.get(c) for c in cols])
+    hrows.append([dict(e, sid="human-r1-check", app=e["app"].replace("-r2-", "-")).get(c) for c in cols])  # earlier design
     if e.get("type") == "click" and e.get("uxid") == "task-answer":  # as the SDK records it: own aria-label region
         hrows.append([dict(e, t=e["t"] + 1, region="input:Your answer").get(c) for c in cols])
 db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", hrows)
@@ -86,8 +88,10 @@ sim_n = q(f"SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE {SIM}")[0]["n
 
 checks = [
     ("silver dedupes nothing it shouldn't (events == bronze)", count("silver_events") == count("bronze_events")),
-    ("one trial per session x task (60 simulated + 1 human sessions x 5)", count("silver_trials") == 305),
+    ("one trial per session x task (60 simulated + 2 human sessions x 5)", count("silver_trials") == 310),
     ("gold keeps human trials apart from simulated (5 vs 300)", human == 5 and sim_n == 300),
+    ("earlier-design human sessions become human_r1, never pooled with revision 2",
+     q("SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE session_type = 'human_r1'")[0]["n"] == 5),
     ("F4: top v1 rage element is kpi-avg-fare", friction and friction[0]["uxid"] == "kpi-avg-fare" and friction[0]["n_rage_clicks"] > 0),
     ("F4: v2 has no rage clicks on kpi-avg-fare", v2_kpi == 0),
     ("F1: T2 success v1 < 0.5 and v2 > 0.7", cmp["T2"]["success_rate_v1"] < 0.5 < 0.7 < cmp["T2"]["success_rate_v2"]),
@@ -120,8 +124,9 @@ checks += [
      B("B2", "v1", "reformulation_rate_excl_pasted") >= 0.15 and B("B2", "v2", "reformulation_rate_excl_pasted") == 0),
     ("B3: latency v1 > 3x v2", B("B3", "v1", "avg_latency_ms") > 3 * B("B3", "v2", "avg_latency_ms")),
     ("B3: goals abandoned more in v1", B("B3", "v1", "goal_abandon_rate") > B("B3", "v2", "goal_abandon_rate") + 0.1),
-    ("B4: chat found later in v1 (v2 open from the start)", B("B4", "v1", "avg_ms_to_chat_open") > 5000 and B("B4", "v2", "avg_ms_to_chat_open") == 0),
-    ("B4: some v1 sessions never open the chat, no v2", B("B4", "v1", "never_opened_rate") > 0 and B("B4", "v2", "never_opened_rate") == 0),
+    # revision 2 retired B4: the assistant is open from the start in both versions, so the two must not differ
+    ("B4 retired: chat open from the start in both versions", B("B4", "v1", "avg_ms_to_chat_open") == 0 == B("B4", "v2", "avg_ms_to_chat_open")
+     and B("B4", "v1", "never_opened_rate") == 0 == B("B4", "v2", "never_opened_rate")),
     ("B5: selection ignored -> wrong in v1, right in v2", B("B5", "v1", "wrong_answer_rate") == 1.0 and B("B5", "v2", "wrong_answer_rate") == 0),
     ("B5: repair attempts higher in v1", B("B5", "v1", "repair_rate") > B("B5", "v2", "repair_rate") + 0.3),
     ("paste: every simulated pasted goal is flagged, nothing else",

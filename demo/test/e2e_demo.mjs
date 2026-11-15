@@ -83,7 +83,7 @@ const checks = [
   ['v2 outcomes all correct except planned', outcomes(v2).join() === 'T1:correct,T2:correct,T3:correct,T4:correct,T5:correct'],
   ['v2 has no rage clicks', !v2.some((e) => e.type === 'rage_click')],
   ['v2 never opens the hidden menu', !v2.some((e) => e.uxid === 'menu-more')],
-  ['events carry session type + app id', v1.every((e) => e.st === 'agent' && e.app === 'taxi-ops-demo-v1')],
+  ['events carry session type + app id', v1.every((e) => e.st === 'agent' && e.app === 'taxi-ops-demo-r2-v1')],
   ['no query string in recorded path', !raw1.includes('study=1') && !raw1.includes('pid=P01')]
 ];
 for (const [n, ok] of checks) console.log(ok ? 'PASS' : 'FAIL', n);

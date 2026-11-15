@@ -19,18 +19,16 @@ const server = spawn('python3', [path.join(dash, 'app.py'), '--port', String(POR
 await new Promise((r) => setTimeout(r, 900));
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM, headless: true });
 
+const logAxis = {};
 async function runBot(v, consent) {
   const before = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').split('\n').filter(Boolean).length : 0;
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.goto(`http://127.0.0.1:${PORT}/?study=1&pid=C0${v}&st=agent&v=${v}`);
   await page.waitForSelector('#g-start');
   await page.waitForSelector('#line .scatterlayer .trace');
+  logAxis[v] = await page.evaluate(() => document.getElementById('line')._fullLayout.yaxis.type);
   if (consent) await page.check('#g-consent');
   await page.click('#g-start');
-  if (v === 1) { // B4: only the small icon leads to the assistant
-    await page.waitForTimeout(500);
-    await page.click('#chat-launch');
-  }
   await page.waitForSelector('#chat:not([hidden])');
 
   let nBot = 0;
@@ -70,7 +68,7 @@ async function runBot(v, consent) {
   const pt = await page.evaluate((d) => {
     const gd = document.getElementById('line'), xa = gd._fullLayout.xaxis, ya = gd._fullLayout.yaxis;
     const tr = gd.data.find((t) => t.name === 'Bronx'), i = tr.x.indexOf(d), r = gd.getBoundingClientRect();
-    return { x: r.left + xa._offset + xa.l2p(xa.d2l(d)), y: r.top + ya._offset + ya.l2p(tr.y[i]) };
+    return { x: r.left + xa._offset + xa.l2p(xa.d2l(d)), y: r.top + ya._offset + ya.l2p(ya.d2l(tr.y[i])) };
   }, goals[3].answer);
   await page.mouse.move(pt.x, pt.y, { steps: 5 });
   await page.waitForTimeout(250);
@@ -109,7 +107,8 @@ const outcomes = (evs) => of(evs, 'goal_outcome').map((e) => `${e.goal}:${e.stat
 const lat = (evs, beh) => Math.max(...resp(evs, beh).map((e) => e.latency_ms));
 const g4sel = (evs) => { const s = of(evs, 'selection'), p = of(evs, 'prompt_submit').find((e) => e.goal === 'G4'); return s.length && p && s[0].t < p.t; };
 const checks = [
-  ['B4: v1 opens chat by clicking the icon, v2 auto-open', of(v1, 'chat_open')[0]?.how === 'click' && of(v2, 'chat_open')[0]?.how === 'auto'],
+  ['revision 2: assistant opens automatically in both versions (B4 retired)', of(v1, 'chat_open')[0]?.how === 'auto' && of(v2, 'chat_open')[0]?.how === 'auto'],
+  ['F5: v1 line chart has a log y axis, v2 linear', logAxis[1] === 'log' && logAxis[2] === 'linear'],
   ['five goal_start events with Amar categories', of(v1, 'goal_start').length === 5 && of(v1, 'goal_start').every((e) => e.gcats)],
   ['one prompt_submit per question, each with goal + turn', of(v1, 'prompt_submit').length === 6 && of(v1, 'prompt_submit').every((e) => e.goal && e.turn >= 1)],
   ['prompt_submit and assistant_response pair up by (goal, turn)', of(v1, 'prompt_submit').every((p) => of(v1, 'assistant_response').some((a) => a.goal === p.goal && a.turn === p.turn))],
@@ -129,7 +128,7 @@ const checks = [
   ['paste: pasted goal flagged on its prompt (pasted + goal_sim >= 0.8)', (() => { const p = of(v2, 'prompt_submit').find((e) => e.goal === 'G5'); return p && p.pasted === true && p.goal_sim >= 0.8; })()],
   ['paste: typed prompts are not flagged and stay below 0.8', of(v1, 'prompt_submit').every((e) => e.pasted === false && e.goal_sim < 0.8)],
   ['pasted G5 goal still answered correctly by the stub', of(v2, 'goal_outcome').find((e) => e.goal === 'G5')?.status === 'correct'],
-  ['every event is st=agent, app id set', [...v1, ...v2].every((e) => e.st === 'agent' && /^taxi-ops-demo-v[12]$/.test(e.app))],
+  ['every event is st=agent, app id set', [...v1, ...v2].every((e) => e.st === 'agent' && /^taxi-ops-demo-r2-v[12]$/.test(e.app))],
   ['no query string in recorded path', !JSON.stringify(v1).includes('study=1') && !JSON.stringify(v1).includes('pid=C01')],
 ];
 for (const [n, ok] of checks) console.log(ok ? 'PASS' : 'FAIL', n);

@@ -52,11 +52,10 @@
   #chat-sel button { border:0; background:none; cursor:pointer; color:inherit; padding:0 2px; }
   #chat-form { display:flex; gap:6px; padding:8px 10px; border-top:1px solid var(--line); }
   #chat-form input { flex:1; min-width:0; }
-  /* PLANTED BEHAVIOR B4 (v1): the only way into the assistant is a small, unlabeled, low-contrast icon. */
+  /* Revision 2: the assistant is equally visible in both versions (B4, a hidden entry point in v1, is retired). */
   #chat-launch { position:fixed; left:16px; bottom:16px; z-index:20; }
-  body.v1 #chat-launch { width:28px; height:28px; border-radius:50%; border:1px solid #e3e6e8; background:#f4f5f6; color:#c3cacd; font-size:13px; padding:0; cursor:pointer; }
-  body.v2 #chat-launch { border-radius:20px; border:0; background:var(--accent); color:#fff; padding:9px 16px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.18); }
-  body.v2.chat-on main { padding-bottom:300px; }  /* the open panel must not hide content in the fixed version */
+  #chat-launch { border-radius:20px; border:0; background:var(--accent); color:#fff; padding:9px 16px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.18); }
+  body.chat-on main { padding-bottom:300px; }  /* the open panel must not hide content */
   body.tasks #chat, body.tasks #chat-launch { display:none !important; }
 </style>
 </head>
@@ -192,7 +191,7 @@
   // ---------------------------------------------------------------- telemetry (SDK)
   const rec = UXTelemetry.init({
     endpoint: '/events',
-    appId: 'taxi-ops-demo-v' + V,
+    appId: 'taxi-ops-demo-r2-v' + V,                // r2 = design revision 2 (log axis F5; assistant visible in both)
     consent: true,                                  // explicit opt-in is required by the SDK
     sessionType: qs.get('st') || 'human',
     participantId: PID,
@@ -241,7 +240,9 @@
       title: { text: 'Daily trips', font: { size: 14 } }, height: 330, margin: { t: 40, l: 55, r: 10, b: 60 },
       legend: V === 1 ? { font: { size: 8, color: '#cfcfcf' }, orientation: 'h', y: -0.3 }
                       : { font: { size: 13, color: '#1b3139' }, orientation: 'h', y: -0.25 },
-      hovermode: V === 1 ? 'closest' : 'x unified'
+      hovermode: V === 1 ? 'closest' : 'x unified',
+      // PLANTED FLAW F5 (v1): log-scale y axis on a chart people read as linear; compresses gaps and dips.
+      yaxis: V === 1 ? { type: 'log' } : { type: 'linear' }
     };
     Plotly.react('line', traces, layout, { displayModeBar: false });
   }
@@ -323,9 +324,8 @@
   if (MODE !== 'tasks') {
     launch.addEventListener('click', () => openChat('click'));
     $c('chat-min').addEventListener('click', closeChat);
-    // PLANTED BEHAVIOR B4: v1 starts collapsed behind the unlabeled icon; v2 starts open (and minimizes to a labeled button)
-    if (V === 2) { launch.textContent = 'Ask the assistant'; launch.setAttribute('aria-label', 'Ask the assistant'); openChat('auto'); }
-    else launch.hidden = false;
+    // Both versions start with the assistant open; minimized, it shows as a labeled button (B4 retired in revision 2)
+    launch.textContent = 'Ask the assistant'; launch.setAttribute('aria-label', 'Ask the assistant'); openChat('auto');
   }
 
   function addMsg(kind, text) {
