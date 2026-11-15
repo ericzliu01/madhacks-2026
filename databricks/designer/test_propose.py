@@ -13,7 +13,7 @@ results = []
 def check(name, ok): results.append(ok); print("PASS" if ok else "FAIL", name)
 
 tmp = Path(tempfile.mkdtemp())
-propose.OUT, propose.PROPOSALS = tmp / "out", tmp / "proposals" / "latest.json"
+propose.OUT, propose.PROPOSALS_DIR = tmp / "out", tmp / "proposals"
 propose.main(["evidence", "--source", "local"])
 pack = json.loads((propose.OUT / "evidence.json").read_text())
 check("pack has simulated evidence from all five gold tables",
@@ -36,9 +36,9 @@ bad_target = dict(good, title="bad target", target="kpi-nonexistent")
 bad_lit = dict(good, title="unverified paper", literature=["Huang2012UserSUV"])
 fake = lambda p: ({"summary": "s", "changes": [good, wrong_value, bad_target, bad_lit]}, "claude-opus-5-5", "req_test")
 
-class A: dry_run = False
+class A: dry_run = False; from_file = None; from_ai_gen = None; name = None; designer = None
 propose.cmd_draft(A, call=fake)
-out = json.loads(propose.PROPOSALS.read_text())
+out = json.loads((propose.PROPOSALS_DIR / "claude-api.json").read_text())
 check("only the valid change survives, as pending", [c["title"] for c in out["changes"]] == [good["title"]]
       and out["changes"][0]["status"] == "pending" and out["changes"][0]["id"] == "P1")
 check("simulated evidence is labeled from the row", out["changes"][0]["evidence"][0]["session_type"] == "simulated"
@@ -49,9 +49,36 @@ check("unknown element rejected", "unknown element" in reasons.get("bad target",
 check("unverified literature rejected", "not verified" in reasons.get("unverified paper", ""))
 check("no verified literature is stated", "No literature rows are verified" in (out["literature_note"] or ""))
 
-propose.main(["review", "P1", "--approve", "--by", "UX dev", "--note", "ship it"])
-out = json.loads(propose.PROPOSALS.read_text())
+propose.main(["review", "P1", "--set", "claude-api", "--approve", "--by", "UX dev", "--note", "ship it"])
+out = json.loads((propose.PROPOSALS_DIR / "claude-api.json").read_text())
 check("review records approval, reviewer and note", out["changes"][0]["status"] == "approved"
       and out["changes"][0]["reviewed_by"] == "UX dev" and out["changes"][0]["review_note"] == "ship it")
+
+check("evidence ids are stable table|session_type|keys",
+      kpi["id"] == "gold_element_friction|simulated|v1|kpi-avg-fare")
+
+# --from-file: a draft written elsewhere (e.g. this Claude Code session), same checker
+(tmp / "d.json").write_text(json.dumps({"summary": "s", "changes": [good, bad_target]}))
+propose.main(["draft", "--from-file", str(tmp / "d.json"), "--name", "claude-session", "--designer", "Claude (session)"])
+cs = json.loads((propose.PROPOSALS_DIR / "claude-session.json").read_text())
+check("--from-file: valid change kept, bad one rejected, designer recorded",
+      len(cs["changes"]) == 1 and len(cs["rejected_by_validator"]) == 1 and cs["designer"] == "Claude (session)")
+
+# --from-ai-gen: the SQL row (reply may be fenced) + the evidence snapshot it saw, rows carrying SQL-built ids
+rows = propose.rows_local()
+snapshot = {t: [dict(r, id=propose.evidence_id(t, r)) for r in rs] for t, rs in rows.items()}
+row = {"generated_at": "2026-11-15T12:00:00Z", "evidence_json": json.dumps(snapshot),
+       "draft_json": "```json\n" + json.dumps({"summary": "s", "changes": [good, wrong_value]}) + "\n```"}
+(tmp / "row.json").write_text(json.dumps(row))
+propose.main(["draft", "--from-ai-gen", str(tmp / "row.json")])
+ag = json.loads((propose.PROPOSALS_DIR / "ai-gen.json").read_text())
+check("--from-ai-gen: fenced reply parsed, checked against the stored snapshot",
+      len(ag["changes"]) == 1 and len(ag["rejected_by_validator"]) == 1 and "ai_gen" in ag["designer"])
+(tmp / "bad.json").write_text(json.dumps(dict(row, draft_json="Here are my ideas: make it better.")))
+propose.main(["draft", "--from-ai-gen", str(tmp / "bad.json"), "--name", "ai-gen-bad"])
+bad = json.loads((propose.PROPOSALS_DIR / "ai-gen-bad.json").read_text())
+check("--from-ai-gen: a non-JSON reply gives an empty set with the error, not a crash", bad["changes"] == [] and "error" in bad)
+check("08_ai_design_proposals.sql is in sync with the rules in propose.py",
+      propose.SQL_08.read_text() == propose.sql_08())
 
 sys.exit(0 if all(results) else 1)

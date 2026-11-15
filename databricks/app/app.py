@@ -202,12 +202,15 @@ def _convert(v, col):
     return v
 
 
-def load_proposals(path):
-    """The Claude designer's latest proposal file (databricks/designer/propose.py writes it), or None."""
-    try:
-        return json.loads(Path(path).read_text())
-    except (OSError, ValueError):
-        return None
+def load_proposals(directory):
+    """Every designer's proposal set (databricks/designer/propose.py writes proposals/<name>.json), newest first."""
+    sets = []
+    for f in sorted(Path(directory).glob("*.json")):
+        try:
+            sets.append(json.loads(f.read_text()))
+        except (OSError, ValueError):
+            continue
+    return sorted(sets, key=lambda d: str(d.get("generated_at", "")), reverse=True)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -215,7 +218,7 @@ class Handler(SimpleHTTPRequestHandler):
     gold = None
     bot = None
     latency_scale = 1.0
-    proposals_path = HERE / "proposals" / "latest.json"
+    proposals_path = HERE / "proposals"
 
     def send_json(self, obj, code=200):
         body = json.dumps(obj).encode()

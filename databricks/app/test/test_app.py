@@ -88,8 +88,10 @@ gold.results()
 check("results cached within ttl", len(sx.sql) == 4)
 
 (tmp / "proposals").mkdir()
-(tmp / "proposals" / "latest.json").write_text(json.dumps({"changes": [{"id": "P1", "uxid": "kpi-avg-fare"}]}))
-app.Handler.proposals_path = tmp / "proposals" / "latest.json"
+(tmp / "proposals" / "claude-session.json").write_text(json.dumps({"generated_at": "2", "changes": [{"id": "P1", "uxid": "kpi-avg-fare"}]}))
+(tmp / "proposals" / "ai-gen.json").write_text(json.dumps({"generated_at": "1", "changes": []}))
+(tmp / "proposals" / "broken.json").write_text("{not json")
+app.Handler.proposals_path = tmp / "proposals"
 col = app.Collector(app.LocalSink(tmp / "out2"), flush_secs=60)
 srv, port = serve(col, static)
 app.Handler.gold = None
@@ -97,7 +99,8 @@ d = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/results").re
 check("/api/results without warehouse explains setup", d["configured"] is False and "warehouse" in d["error"])
 app.Handler.gold = gold
 d = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/results").read())
-check("/api/results returns gold rows + proposals", d["configured"] and len(d["tasks"]) == 2 and d["proposals"]["changes"][0]["uxid"] == "kpi-avg-fare")
+check("/api/results returns gold rows + proposals", d["configured"] and len(d["tasks"]) == 2 and d["proposals"][0]["changes"][0]["uxid"] == "kpi-avg-fare"
+      and len(d["proposals"]) == 2)  # both sets, newest first; the broken file is skipped
 class HalfSX(FakeSX):  # chat tables not built yet: those queries fail, task queries still work
     def execute_statement(self, statement, warehouse_id, wait_timeout):
         if "gold_bot_behavior" in statement or "gold_goal_summary" in statement:

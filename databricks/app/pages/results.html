@@ -163,8 +163,12 @@
       <th class="num">Turns</th><th class="num">To first prompt</th><th class="num">Pasted goal v1 / v2</th><th class="num">n v1 / v2</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
   }
 
+  function proposalSections(sets) {
+    if (!Array.isArray(sets) || !sets.length) return `<section class="card"><h2>Design proposals</h2><p class="sub">No proposal file yet. Run <code>databricks/designer/propose.py</code>.</p></section>`;
+    return sets.map(proposalSection).join('');
+  }
   function proposalSection(p) {
-    if (!p || !Array.isArray(p.changes)) return `<section class="card"><h2>Design proposals</h2><p class="sub">No proposal file yet. Run <code>databricks/designer/propose.py</code>.</p></section>`;
+    if (p.error) return `<section class="card"><h2>Design proposals <span class="muted" style="font-weight:400;font-size:13px">by ${esc(p.designer)}</span></h2><div class="err">${esc(p.error)}</div></section>`;
     const badge = (st) => `<span class="tag ${st === 'approved' ? 'human' : st === 'rejected' ? 'other' : 'simulated'}">${esc(st || 'pending')}</span>`;
     const cite = (e) => `${esc(e.metric)} = ${esc(typeof e.value === 'number' ? +e.value.toFixed(3) : e.value)} (${esc(e.n_field || 'n')}=${esc(e.n)}, ${tagFor(e.session_type)} ${esc([e.task_id, e.goal_id, e.behavior, e.uxid, e.app_version].filter(Boolean).join(' · '))})`;
     const items = p.changes.map((c) => `<div class="prop"><h3>${esc(c.id)}. ${esc(c.title)} ${badge(c.status)}
@@ -201,7 +205,7 @@
       if (t.length) html += taskSection(st, t);
       if (e.length) html += elementSection(st, e);
     });
-    html += proposalSection(d.proposals);
+    html += proposalSections(d.proposals);
     if (d.schema) html += `<p class="muted" style="font-size:12px">Source: <code>${esc(d.schema)}.gold_task_summary</code>, <code>gold_element_friction</code>, <code>gold_goal_summary</code>, <code>gold_bot_behavior</code> via SQL warehouse. Cached 30 s.</p>`;
     $('out').innerHTML = html;
   }
