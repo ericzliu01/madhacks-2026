@@ -46,7 +46,7 @@ pipeline as P01-P06." All tables hold human trials only; no bot or simulated num
 Free Edition."
 
 ## Live trial (outside the 4 minutes)
-Run everything from `<app-url>/demo`. **Live trial** starts a normal 3-goal session (v1 or v3) with participant id
+Full instructions: `docs/LIVE_TRIAL.md`. Run everything from `<app-url>/demo`. **Live trial** starts a normal 3-goal session (v1 or v3) with participant id
 `DEMO-...`. It counts as a **human** trial only if all three goals are finished (answered or given up); otherwise silver
 drops it. Hand the laptop to someone who hasn't seen the answers, not a team member. Rerun `ux_pipeline_all.sql`
 afterwards to see it in `/results`. Pitch-step clicks in the console (no goals) never reach the study tables.

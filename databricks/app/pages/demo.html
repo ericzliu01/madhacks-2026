@@ -225,14 +225,7 @@
     $('trial').classList.add('primary'); renderSteps(); renderTrial();
   }
   function renderTrial() {
-    $('notes').innerHTML = `<h2>Live trial</h2><div class="meta">Counts as a human trial once all 3 goals are finished</div>
-      <h3>Who</h3><p class="say">Hand the laptop to someone who hasn't seen the answers (a judge or a visitor), not a team member.</p>
-      <h3>Say</h3><ol><li>"Answer three questions using only this dashboard. Take your time; giving up is fine."</li>
-      <li>Don't help or point at anything while they work.</li></ol>
-      <h3>After</h3><ol><li>The session is written to the Volume within a few seconds.</li>
-      <li>Rerun <code>ux_pipeline_all.sql</code>: it appears under <b>human</b>, participant <code>${esc(trial.pid)}</code>.</li>
-      <li>Not finished = not counted (same rule as the partial sessions excluded earlier).</li></ol>
-      <div class="warnbox">Takes about 5 minutes: run it outside the 4-minute pitch, or while judges watch after it.</div>`;
+    $('notes').innerHTML = `<h2>Live trial</h2><div class="meta">${esc(trial.pid)} &middot; counts as a human trial once all 3 goals are finished</div>`;
     $('tabs').innerHTML = `<button data-v="1" class="${trial.v === 1 ? 'on' : ''}">New trial on v1</button>
       <button data-v="3" class="${trial.v === 3 ? 'on' : ''}">New trial on v3 (build-1)</button>
       <span class="spacer"></span><span class="pill" id="tprog">${esc(trial.pid)} &middot; not started</span>`;
