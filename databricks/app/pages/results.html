@@ -53,13 +53,10 @@
   <nav><a href="/">Dashboard</a><a href="/status">Status</a><a href="#" id="reload">Refresh</a></nav>
 </header>
 <main>
-  <div class="note"><b>How to read this.</b> Rows labeled <span class="tag simulated">simulated</span> come from a bot whose
-    behavior encodes our hypotheses about the planted flaws: they show the pipeline recovers those effects, not that real
-    users have them. <span class="tag agent">agent</span> rows are bots running the real dashboard in a browser with one
-    fixed strategy for both versions, so differences come from the designs, not from rates we chose; they are still
-    not people. <span class="tag human">human</span> rows are real sessions. Types ending in <code>_r1</code> were
-    recorded on the earlier design (hidden assistant in v1, tooltips in both versions) and are kept apart. Samples are small: every rate shows its
-    <i>n</i>, and none of these differences are tested for significance.</div>
+  <div class="note"><b>How to read this.</b> Every row is a <span class="tag human">human</span> trial: a real person on the
+    current design who finished all three goals (P01-P06, plus any finished live-demo trial, participant id <code>DEMO-…</code>).
+    Simulated, bot and unfinished sessions stay in the raw data but are left out of every table. Six people is a very small
+    sample: every rate shows its <i>n</i>, and nothing here is tested for significance.</div>
   <div id="status" class="muted">Loading results from the SQL warehouse&hellip; (a stopped warehouse can take a minute to start)</div>
   <div id="out"></div>
 </main>

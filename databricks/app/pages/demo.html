@@ -100,7 +100,7 @@
       <summary>What not to say</summary>
       <ul style="font-size:13px;margin-top:6px">
         <li>No statistical significance, no "users preferred". 6 people is anecdote scale.</li>
-        <li>Agent rows are bots on the real UI, simulated rows are generated: neither is people.</li>
+        <li>All tables hold human trials only (P01-P06 + finished DEMO trials). No bot or simulated numbers.</li>
         <li>No eye tracking. Cursor position is a rough proxy at best.</li>
         <li><code>ai_gen</code>'s model is chosen by Databricks; we don't know which it is.</li>
         <li>v3 still has three planted flaws: nobody proposed fixes for them.</li>
@@ -159,8 +159,8 @@
       do: ['Scroll to <b>ai-gen-loop1</b>: show P1 and P5 approved, P2 rejected with its reason.', 'Point at a cited number and its <i>n</i>.'],
       stage: [{ label: 'Proposals', src: '/results#proposals' }] },
     { t: 190, d: 40, title: 'Re-test',
-      do: ['Hover the line in v3: tooltip appears.', 'Point at the inline Borough filter.', 'Open the agent goals table on /results.'],
-      stage: [{ label: 'v1 | v3 side by side', pair: [dash(1), dash(3)] }, { label: 'Agent goals', src: '/results#st-agent' }, { label: 'Human goals', src: '/results#st-human' }] },
+      do: ['Hover the line in v3: tooltip appears.', 'Point at the inline Borough filter.', 'Re-test with people: a judge does a <b>Live trial</b> on v3 (after the pitch).', 'Human goals on /results: v1 now, v3 once live trials finish.'],
+      stage: [{ label: 'v1 | v3 side by side', pair: [dash(1), dash(3)] }, { label: 'Human goals', src: '/results#st-human' }] },
     { t: 230, d: 10, title: 'Close',
       stage: [{ label: 'Results', src: '/results' }] }
   ];
@@ -383,7 +383,7 @@
     ['deploy', 'App redeployed today (Free Edition apps stop 24 h after deploy)'],
     ['status', 'Telemetry writes to the Volume with 0 errors', () => health.status && health.status.sink === 'VolumeSink' && !health.status.flush_errors],
     ['warehouse', 'SQL warehouse attached and gold tables load', () => health.results && health.results.goals && !health.results.error],
-    ['agentv3', 'Agent v1 vs v3 rows present (bot re-test uploaded, pipeline rerun)', () => health.results && (health.results.goals || []).some((g) => g.session_type === 'agent' && g.app_version === 'v3')],
+    ['human', 'Gold holds human trials only (pipeline rerun with the human-only filter)', () => health.results && (health.results.goals || []).length > 0 && (health.results.goals || []).every((g) => g.session_type === 'human')],
     ['proposals', 'ai-gen-loop1 proposals show with sign-off', () => health.results && (health.results.proposals || []).some((p) => (p.changes || []).some((c) => c.reviewed_by))],
     ['warm', 'Warehouse warmed up (opened the SQL editor once; cold start is ~1 min)'],
     ['genie', 'Genie space open and the questions rehearsed'],

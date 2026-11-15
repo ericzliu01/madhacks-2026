@@ -81,16 +81,26 @@ for line in chat_src.read_text().splitlines():
     e = json.loads(line)
     e.update(st="demo", pid="DEMO-T1", _source_file="demo.jsonl")
     demo_rows.append([dict(e, sid="demo-complete").get(c) for c in cols])
+    demo_rows.append([dict(e, sid="human-trial-check", st="human", pid="P99").get(c) for c in cols])  # a finished human trial
     if not (e.get("type") == "goal_outcome" and e.get("goal") != "G1"):
         partial.append([dict(e, sid="demo-partial").get(c) for c in cols])
 db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", demo_rows + partial)
 n_demo = len(demo_rows) + len(partial)
 n += n_demo
-print(f"loaded {n} bronze events from {sessions} (+1 session relabelled human, +1 excluded, +2 demo)")
+print(f"loaded {n} bronze events from {sessions} (+1 task session relabelled human, +1 excluded, +2 demo, +1 human trial)")
 
-for name in ("02_silver.sql", "03_gold.sql", "06_silver_chat.sql", "07_gold_chat.sql"):
-    for stmt in prep((SQL / name).read_text()):
-        db.execute(stmt)
+# The real silver keeps finished human trials only (STUDY_SCOPE). Run 1 builds without that filter so the metric logic
+# is tested on the simulated data; run 2 (further down) builds with it and checks that only human trials survive.
+SCOPE = re.compile(r"\n[ \t]*AND sid IN \([^()]*?st IN \('human', 'demo'\).*?-- STUDY_SCOPE", re.S)
+def build(scoped):
+    for name in ("02_silver.sql", "03_gold.sql", "06_silver_chat.sql", "07_gold_chat.sql"):
+        text = (SQL / name).read_text()
+        if name == "02_silver.sql" and not scoped:
+            text, k = SCOPE.subn("", text)
+            assert k == 1, "STUDY_SCOPE filter not found in 02_silver.sql"
+        for stmt in prep(text):
+            db.execute(stmt)
+build(scoped=False)
 
 q = lambda s: [dict(r) for r in db.execute(s)]
 count = lambda t: q(f"SELECT COUNT(*) AS c FROM {t}")[0]["c"]
@@ -104,8 +114,7 @@ human = q("SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE session_type =
 sim_n = q(f"SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE {SIM}")[0]["n"]
 
 checks = [
-    ("silver dedupes nothing it shouldn't (events == bronze minus excluded and the partial demo)",
-     count("silver_events") == count("bronze_events") - 5 - len(partial)),
+    ("silver dedupes nothing it shouldn't (events == bronze minus excluded)", count("silver_events") == count("bronze_events") - 5),
     ("one trial per session x task (60 simulated + 2 human sessions x 5)", count("silver_trials") == 310),
     ("gold keeps human trials apart from simulated (5 vs 300)", human == 5 and sim_n == 300),
     ("sessions in excluded_sessions never reach silver", q("SELECT COUNT(*) AS c FROM silver_events WHERE session_id = 'excluded-check'")[0]["c"] == 0),
@@ -133,11 +142,10 @@ checks += [
     ("01b read_files schema is in sync with the 01 DDL", gen_ok),
     ("chat: 60 simulated sessions x 5 goals in silver_goals", q(f"SELECT COUNT(*) AS c FROM silver_goals WHERE {SIM}")[0]["c"] == 300),
     ("chat: every simulated turn has a reply", q("SELECT COUNT(*) AS c FROM silver_turns WHERE response_ms IS NULL")[0]["c"] == 0),
-    ("chat rows are all simulated, except the finished demo session (counted as human)",
-     [r["session_id"] for r in q("SELECT DISTINCT session_id FROM gold_goal_metrics WHERE session_type <> 'simulated'")] == ["demo-complete"]
+    ("chat rows are simulated except the added human/demo sessions (demo counted as human)",
+     sorted(r["session_id"] for r in q("SELECT DISTINCT session_id FROM gold_goal_metrics WHERE session_type <> 'simulated'"))
+     == ["demo-complete", "demo-partial", "human-trial-check"]
      and q("SELECT DISTINCT session_type AS s FROM gold_goal_metrics WHERE session_id = 'demo-complete'")[0]["s"] == "human"),
-    ("demo: a session that did not finish G1-G3 never reaches silver",
-     q("SELECT COUNT(*) AS c FROM silver_events WHERE session_id = 'demo-partial'")[0]["c"] == 0),
     ("B1: v1 percent answers wrong, v2 right", B("B1", "v1", "wrong_answer_rate") == 1.0 and B("B1", "v2", "wrong_answer_rate") == 0),
     ("B1: over-trust on G1 higher in v1 than v2", (gsum[("G1", "v1")]["overtrust_rate"] or 0) > 0.3 > (gsum[("G1", "v2")]["overtrust_rate"] or 0)),
     # a rephrase after a PASTED goal shares few tokens with the long goal text, so the plain rate undercounts: use the
@@ -159,6 +167,20 @@ checks += [
     ("paste: goal summary reports pasted goals and excl-pasted success",
      all(r["n_goals_pasted_goal"] is not None and r["success_rate_excl_pasted"] is not None for r in gsum.values())),
     ("G5 control: success within 0.2 across versions", abs(gsum[("G5", "v1")]["success_rate"] - gsum[("G5", "v2")]["success_rate"]) < 0.2),
+]
+
+# ---------------------------------------------------------------- run 2: the real silver (human trials only)
+build(scoped=True)
+sids = lambda t, col="session_id": sorted(r["s"] for r in q(f"SELECT DISTINCT {col} AS s FROM {t}"))
+checks += [
+    ("scope: silver holds only finished human trials (human P99 + finished demo)", sids("silver_events") == ["demo-complete", "human-trial-check"]),
+    ("scope: dropped simulated, earlier-design, unfinished human, partial demo and excluded sessions",
+     not {"human-check", "human-r1-check", "demo-partial", "excluded-check"} & set(sids("silver_events"))
+     and q("SELECT COUNT(*) AS c FROM silver_events WHERE session_type <> 'human'")[0]["c"] == 0),
+    ("scope: every gold table is human only",
+     all(q(f"SELECT COUNT(*) AS c FROM {t} WHERE session_type <> 'human'")[0]["c"] == 0 for t in
+         ("gold_task_summary", "gold_element_friction", "gold_goal_summary", "gold_goal_metrics", "gold_turn_metrics", "gold_bot_behavior"))
+     and q("SELECT COUNT(*) AS c FROM gold_goal_summary")[0]["c"] > 0),
 ]
 for name, ok in checks:
     print("PASS" if ok else "FAIL", name)

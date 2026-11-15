@@ -119,6 +119,8 @@ def rows_local():
             g = runpy.run_path(str(ROOT / "databricks/tests/run_sql_local.py"))
     finally:
         sys.argv, sys.exit = argv, exit_
+    # The harness ends on the real, human-only silver; rebuild without that filter to get the simulated rows back.
+    g["build"](scoped=False)
     # The local test relabels one SIMULATED session as 'human' to check that gold keeps the two apart. Those rows are
     # not human data, so they are dropped here: the local pack is simulated only.
     return {t: g["q"](f"SELECT * FROM {t} WHERE session_type = 'simulated'") for t in TABLES}

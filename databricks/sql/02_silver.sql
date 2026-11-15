@@ -31,10 +31,13 @@ FROM (
          ) AS rn
   FROM ${catalog}.${schema}.bronze_events
   WHERE sid IS NOT NULL AND t IS NOT NULL
-    AND (COALESCE(st, '') <> 'demo' OR sid IN (
+    -- STUDY_SCOPE (2026-11-15): human trials only. A trial = a human (or live-demo) session on the current design that
+    -- finished all three study goals (answered or given up). Simulated, agent, earlier-design and unfinished sessions
+    -- stay in bronze but never reach silver, so gold, /results, Genie and the designer see only these trials.
+    AND sid IN (
           SELECT sid FROM ${catalog}.${schema}.bronze_events
-          WHERE st = 'demo' AND type = 'goal_outcome' AND goal IN ('G1', 'G2', 'G3')
-          GROUP BY sid HAVING COUNT(DISTINCT goal) = 3))
+          WHERE st IN ('human', 'demo') AND app LIKE '%-r2-%' AND type = 'goal_outcome' AND goal IN ('G1', 'G2', 'G3')
+          GROUP BY sid HAVING COUNT(DISTINCT goal) = 3)  -- STUDY_SCOPE
     AND sid NOT IN (SELECT session_id FROM ${catalog}.${schema}.excluded_sessions WHERE session_id IS NOT NULL)
 ) d
 WHERE rn = 1;
