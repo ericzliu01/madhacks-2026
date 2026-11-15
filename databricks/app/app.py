@@ -88,6 +88,7 @@ class Collector:
         try:
             self.sink.write(name, data)
             self.written += len(batch)
+            self.last_error = None  # flush_errors keeps the history; last_error reflects the current state
         except Exception as ex:  # keep the events and retry on the next flush
             self.errors += 1
             self.last_error = f"{type(ex).__name__}: {ex}"[:300]

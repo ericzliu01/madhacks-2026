@@ -89,8 +89,20 @@
 <script>
 (async function () {
   const qs = new URLSearchParams(location.search);
-  const V = qs.get('v') === '2' ? 2 : 1;           // 1 = planted flaws, 2 = fixed
-  const STUDY = qs.get('study') === '1';
+  // Study defaults: the Databricks sign-in redirect can drop the query string, so missing values fall back to
+  // values remembered in localStorage (pid, version) instead of silently recording an anonymous, task-less session.
+  const store = {
+    get(k) { try { return localStorage.getItem('uxstudy.' + k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem('uxstudy.' + k, v); } catch (e) { /* private mode: per-load values */ } }
+  };
+  function sticky(key, fallback) {
+    const v = qs.get(key) || store.get(key) || fallback();
+    store.set(key, v);
+    return v;
+  }
+  const V = sticky('v', () => (Math.random() < 0.5 ? '1' : '2')) === '2' ? 2 : 1;  // 1 = planted flaws, 2 = fixed; random split if unset
+  const STUDY = qs.get('study') !== '0';            // study mode is the default; ?study=0 shows the bare dashboard
+  const PID = sticky('pid', () => 'P-' + Math.random().toString(36).slice(2, 8).toUpperCase());
   document.body.classList.add('v' + V);
   if (STUDY) document.body.classList.add('study');
   document.getElementById('ver').textContent = '(design v' + V + ')';
@@ -107,7 +119,7 @@
     appId: 'taxi-ops-demo-v' + V,
     consent: true,                                  // explicit opt-in is required by the SDK
     sessionType: qs.get('st') || 'human',
-    participantId: qs.get('pid') || '',
+    participantId: PID,
     salt: 'taxi-ops-demo'
   });
   rec.setPage('dashboard_v' + V);
