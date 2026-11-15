@@ -13,7 +13,7 @@
         "https://*.azuredatabricks.net/*",
         "https://*.gcp.databricks.com/*"
       ],
-      "js": ["src/content.js"],
+      "js": ["src/uxtelemetry.js", "src/content.js"],
       "run_at": "document_idle",
       "all_frames": false
     }

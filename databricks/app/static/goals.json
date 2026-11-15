@@ -1,0 +1,77 @@
+[
+ {
+  "id": "G1",
+  "categories": [
+   "compute_derived_value",
+   "retrieve_value"
+  ],
+  "behavior": "B1",
+  "prompt": "Brooklyn had more trips than Queens in March. How many percent more? (Brooklyn's total divided by Queens' total, minus 1.)",
+  "answer_format": "a percentage, e.g. 12.5 (within 2 points counts as correct)",
+  "answer": 8.5,
+  "tolerance": 2.0,
+  "type": "number",
+  "active": true
+ },
+ {
+  "id": "G2",
+  "categories": [
+   "filter",
+   "compute_derived_value"
+  ],
+  "behavior": "B2",
+  "prompt": "What was the average fare for trips in the Bronx in March?",
+  "answer_format": "dollars and cents, e.g. 18.40 (within 5 cents counts as correct)",
+  "answer": 21.75,
+  "tolerance": 0.05,
+  "type": "number",
+  "active": true
+ },
+ {
+  "id": "G3",
+  "categories": [
+   "find_extremum",
+   "filter"
+  ],
+  "behavior": "B3",
+  "prompt": "On which day in March did Queens have the fewest trips?",
+  "answer_format": "a date written as YYYY-MM-DD",
+  "answer": "2026-03-18",
+  "tolerance": 0,
+  "type": "date",
+  "active": true
+ },
+ {
+  "id": "G4",
+  "categories": [
+   "find_anomalies",
+   "filter",
+   "retrieve_value"
+  ],
+  "behavior": "B5",
+  "prompt": "On one day in March, the Bronx had unusually few trips: far fewer than on any other day. Which day was it?",
+  "answer_format": "a date written as YYYY-MM-DD",
+  "answer": "2026-03-24",
+  "tolerance": 0,
+  "type": "date",
+  "detail": {
+   "borough": "Bronx",
+   "trips": 228,
+   "ratio_to_usual": 0.255
+  },
+  "active": false
+ },
+ {
+  "id": "G5",
+  "categories": [
+   "determine_range"
+  ],
+  "behavior": null,
+  "prompt": "In Manhattan, how many more trips were there on its busiest day in March than on its quietest day?",
+  "answer_format": "a whole number of trips (within 150 counts as correct)",
+  "answer": 1760,
+  "tolerance": 150,
+  "type": "number",
+  "active": false
+ }
+]

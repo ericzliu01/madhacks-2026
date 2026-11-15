@@ -1,0 +1,14 @@
+# Databricks App config. The app's service principal needs WRITE VOLUME on the target Volume
+# (plus USE CATALOG and USE SCHEMA); see databricks/app/README.md.
+command: ["python", "app.py"]
+env:
+  - name: EVENTS_VOLUME_PATH
+    value: "/Volumes/workspace/ux_telemetry/raw_events/raw"
+  - name: FLUSH_SECS
+    value: "3"
+  # SQL warehouse for /results: add a "SQL warehouse" resource to the app (permission: Can use) with the resource
+  # key sql-warehouse; the app runtime then fills this in. Without it /results shows a setup message.
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: GOLD_SCHEMA
+    value: "workspace.ux_telemetry"

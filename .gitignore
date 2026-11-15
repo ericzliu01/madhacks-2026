@@ -1,0 +1,8 @@
+node_modules
+events.jsonl
+*.log
+.DS_Store
+databricks/data/
+databricks/app/events/
+__pycache__/
+databricks/designer/out/

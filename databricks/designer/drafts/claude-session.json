@@ -1,0 +1,182 @@
+{
+ "summary": "Six changes, strongest evidence first: three chart and page fixes from the task study (fake-clickable KPI, hidden filter, truncated axis) and three assistant fixes from the chat study (wrong derived values, hidden entry point, slow replies). The line chart's colors (F2), the borough misparse (B2) and the ignored selection (B5) also show effects and are candidates for the next round. All evidence is simulated.",
+ "changes": [
+  {
+   "title": "Make the Avg fare KPI card look static",
+   "target_kind": "element",
+   "target": "kpi-avg-fare",
+   "change": "Remove the pointer cursor and the blue hover ring from the Avg fare card so it looks like the Total trips card. If a drill-down is wanted later, make it a real link with a visible affordance (underlined label, chevron) instead.",
+   "evidence": [
+    {
+     "evidence_id": "gold_element_friction|simulated|v1|kpi-avg-fare",
+     "metric": "n_rage_clicks",
+     "value": 17,
+     "n_field": "n_sessions",
+     "n": 17
+    },
+    {
+     "evidence_id": "gold_element_friction|simulated|v1|kpi-avg-fare",
+     "metric": "n_dead_clicks",
+     "value": 62,
+     "n_field": "n_clicks",
+     "n": 62
+    }
+   ],
+   "rationale": "Every click on the card in v1 is a dead click (pointer cursor on a non-interactive element), and rage clicks follow. This is the classic looks-clickable-but-is-not affordance error. All cited rows are simulated sessions whose behavior encodes the study's own hypotheses, so they show the pipeline measures this pattern, not that real people behave this way; the single human session is too small to use.",
+   "literature": [],
+   "expected_effect": "No dead or rage clicks on kpi-avg-fare.",
+   "retest_metric": "n_rage_clicks"
+  },
+  {
+   "title": "Show the borough filter inline in the header",
+   "target_kind": "element",
+   "target": "filter-borough",
+   "change": "Move the Borough select out of the '...' menu into the header next to the title, labeled 'Borough', always visible; remove the '...' menu, which holds nothing else.",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T4|filter",
+     "metric": "abandon_rate_v1",
+     "value": 0.26667,
+     "n_field": "n_trials_v1",
+     "n": 30
+    },
+    {
+     "evidence_id": "gold_version_comparison|simulated|T4|filter",
+     "metric": "success_rate_v1",
+     "value": 0.63333,
+     "n_field": "n_trials_v1",
+     "n": 30
+    },
+    {
+     "evidence_id": "gold_task_summary|simulated|v1|T4|filter",
+     "metric": "avg_idle_ms",
+     "value": 29868.033333333333,
+     "n_field": "n_trials",
+     "n": 30
+    }
+   ],
+   "rationale": "The filter task is the one where v1 participants give up most and sit idle longest before finding the control; v2, with the filter inline, has success near 0.97 on the same task. All cited rows are simulated sessions whose behavior encodes the study's own hypotheses, so they show the pipeline measures this pattern, not that real people behave this way; the single human session is too small to use.",
+   "literature": [],
+   "expected_effect": "T4 abandonment near 0 and idle time down.",
+   "retest_metric": "abandon_rate"
+  },
+  {
+   "title": "Start the bar chart's y-axis at zero and label the bars",
+   "target_kind": "element",
+   "target": "chart-bar",
+   "change": "Set the Total trips by borough y-axis to start at 0 and print each bar's value above it, so bar heights are proportional.",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T2|compute_derived_value",
+     "metric": "success_rate_v1",
+     "value": 0.36667,
+     "n_field": "n_trials_v1",
+     "n": 30
+    },
+    {
+     "evidence_id": "gold_task_summary|simulated|v1|T2|compute_derived_value",
+     "metric": "overtrust_rate",
+     "value": 0.64705882352941,
+     "n_field": "n_trials",
+     "n": 30
+    }
+   ],
+   "rationale": "Comparing two boroughs' totals is the task most often answered wrongly in v1, and most wrong answers were rated satisfying (over-trust): the truncated axis makes an 8.5% gap look several times larger. All cited rows are simulated sessions whose behavior encodes the study's own hypotheses, so they show the pipeline measures this pattern, not that real people behave this way; the single human session is too small to use.",
+   "literature": [],
+   "expected_effect": "T2 success up and its over-trust down.",
+   "retest_metric": "success_rate"
+  },
+  {
+   "title": "Have the assistant compute percentages from totals and show the working",
+   "target_kind": "behavior",
+   "target": "B1",
+   "change": "For percent-difference questions, the assistant computes from the underlying totals, states both totals and the formula in its reply, and never reads values off a chart rendering.",
+   "evidence": [
+    {
+     "evidence_id": "gold_bot_behavior|simulated|B1|v1",
+     "metric": "wrong_answer_rate",
+     "value": 1.0,
+     "n_field": "n_turns",
+     "n": 19
+    },
+    {
+     "evidence_id": "gold_bot_behavior|simulated|B1|v1",
+     "metric": "overtrust_rate",
+     "value": 0.3157894736842105,
+     "n_field": "n_goals",
+     "n": 19
+    },
+    {
+     "evidence_id": "gold_goal_summary|simulated|v1|G1|compute_derived_value|retrieve_value",
+     "metric": "success_rate",
+     "value": 0.1,
+     "n_field": "n_goals",
+     "n": 30
+    }
+   ],
+   "rationale": "Every B1 reply in v1 is wrong, about a third of the goals that saw one ended in a confidently accepted wrong answer, and goal G1 almost never succeeds. Showing the working lets people check the number. All cited rows are simulated sessions whose behavior encodes the study's own hypotheses, so they show the pipeline measures this pattern, not that real people behave this way; the single human session is too small to use.",
+   "literature": [],
+   "expected_effect": "B1 wrong replies and G1 over-trust near 0.",
+   "retest_metric": "overtrust_rate"
+  },
+  {
+   "title": "Replace the chat icon with a labeled 'Ask the assistant' button, open by default",
+   "target_kind": "element",
+   "target": "chat-launcher",
+   "change": "Open the assistant panel on first load; when minimized, show a labeled, high-contrast 'Ask the assistant' button in the bottom-left corner instead of the small unlabeled icon.",
+   "evidence": [
+    {
+     "evidence_id": "gold_bot_behavior|simulated|B4|v1",
+     "metric": "never_opened_rate",
+     "value": 0.3,
+     "n_field": "n_sessions",
+     "n": 30
+    },
+    {
+     "evidence_id": "gold_bot_behavior|simulated|B4|v1",
+     "metric": "avg_ms_to_chat_open",
+     "value": 46501.52381,
+     "n_field": "n_sessions",
+     "n": 30
+    }
+   ],
+   "rationale": "In v1 a large share of sessions never find the assistant, and those that do take most of a minute. All cited rows are simulated sessions whose behavior encodes the study's own hypotheses, so they show the pipeline measures this pattern, not that real people behave this way; the single human session is too small to use.",
+   "literature": [],
+   "expected_effect": "never_opened_rate near 0; time to open the chat near 0.",
+   "retest_metric": "never_opened_rate"
+  },
+  {
+   "title": "Show progress while the assistant works and shorten slow replies",
+   "target_kind": "behavior",
+   "target": "B3",
+   "change": "Show an 'Assistant is working...' indicator immediately after a prompt is sent, and cut the extremum lookup's latency to under 2 s (precompute daily minima and maxima).",
+   "evidence": [
+    {
+     "evidence_id": "gold_bot_behavior|simulated|B3|v1",
+     "metric": "avg_latency_ms",
+     "value": 7245.29412,
+     "n_field": "n_turns",
+     "n": 34
+    },
+    {
+     "evidence_id": "gold_bot_behavior|simulated|B3|v1",
+     "metric": "goal_abandon_rate",
+     "value": 0.21739,
+     "n_field": "n_goals",
+     "n": 23
+    },
+    {
+     "evidence_id": "gold_bot_behavior|simulated|B3|v1",
+     "metric": "reformulation_rate",
+     "value": 0.32353,
+     "n_field": "n_turns",
+     "n": 34
+    }
+   ],
+   "rationale": "Slow replies with no indicator lead to re-sent prompts and goals abandoned while waiting. All cited rows are simulated sessions whose behavior encodes the study's own hypotheses, so they show the pipeline measures this pattern, not that real people behave this way; the single human session is too small to use.",
+   "literature": [],
+   "expected_effect": "Latency under 2 s; fewer re-sends and abandoned goals.",
+   "retest_metric": "goal_abandon_rate"
+  }
+ ]
+}
