@@ -38,11 +38,20 @@ duration as evidence that chat replies are slow. A UX developer then approves or
 
 **3:10 - Re-test (40 s).** `/results` agent rows: "We re-tested with bots that use the real dashboard in a browser with one
 fixed strategy for both versions. Nothing about the outcome is scripted: the truncated axis makes the bot misread the
-bars, the hidden filter makes it give up, the slow reply makes it abandon." Read 2-3 numbers from the agent rows
-(fill in from the run). "Bots are not people: next step is real sessions; our protocol is in the repo."
+bars, the hidden filter makes it give up, the hidden chat icon is never found." Numbers (agent, 15 bots per version,
+2026-11-15 run): **T2 success 0% -> 100%** (v1 bots read the truncated bars: every wrong answer rated satisfied),
+**T4 abandoned 27% -> 0%** (142 dead clicks on the fake-clickable KPI in v1), **60% of v1 bots never found the chat
+-> 0%**, **G1 success 0% -> 100%** (v1's confident wrong percent accepted every time). "Bots are not people: v2 is easy
+for this strategy by construction, and n=15 bots is not a sample of anyone. Then the human sessions."
 
 **3:50 - Close (10 s).** "Capture, Databricks medallion, Genie, AI designer with checks and sign-off, re-test. All on
 Free Edition."
+
+## Re-test caveats (say them if asked)
+- The strategy is ours (salience-ordered exploration, a click budget, patience for replies). It is the same in both
+  versions, so differences come from the designs, but a different strategy would give different numbers.
+- Several bot bugs were found and fixed before the run (clipped bar heights, tooltip parsing, a re-send that gave up
+  too early); the fixed run is the one reported.
 
 ## What not to say
 - No statistical significance, no "users preferred". Simulated and agent results show the pipeline and the designs
