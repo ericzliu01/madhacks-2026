@@ -204,6 +204,11 @@ class Bot {
 
   // ---------------------------------------------------------------- chat
   async ask(text) {
+    // first let any late replies to earlier questions arrive (a person sees them come in), so they are not mistaken
+    // for the answer to this question; up to 15 s
+    const counts = () => this.ev(() => [document.querySelectorAll('#chat-log .msg.user').length,
+                                        document.querySelectorAll('#chat-log .msg.bot:not(.typing)').length]);
+    for (let w = 0; w < 60; w++) { const [u, b] = await counts(); if (b >= u) break; await sleep(250); }
     const nBefore = await this.ev(() => document.querySelectorAll('#chat-log .msg.bot:not(.typing)').length);
     await this.p.fill('#chat-input', text); await this.p.press('#chat-input', 'Enter');
     let t0 = Date.now(), resent = false;
