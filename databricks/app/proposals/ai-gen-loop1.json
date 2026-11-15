@@ -1,0 +1,195 @@
+{
+ "name": "ai-gen-loop1",
+ "designer": "Databricks ai_gen (model chosen by Databricks)",
+ "generated_at": "20261115T141453Z",
+ "evidence_source": "gold tables as of 2026-11-15 14:13:17.155977 (snapshot stored with the draft)",
+ "summary": "The proposed changes aim to improve the usability of the Taxi Ops dashboard by addressing friction points and enhancing user experience. The changes target specific elements, such as the chart-line and kpi-avg-fare, and are backed by evidence from the gold tables. The expected effects of these changes include improved user satisfaction, reduced rage clicks, and increased success rates.",
+ "literature_note": "No literature rows are verified yet, so no papers are cited.",
+ "changes": [
+  {
+   "title": "Improve chart-line interaction",
+   "target_kind": "element",
+   "target": "chart-line",
+   "uxid": "chart-line",
+   "change": "Add a tooltip to display trip data when hovering over the line chart",
+   "evidence": [
+    {
+     "evidence_id": "gold_element_friction|human|v1|chart-line",
+     "table": "gold_element_friction",
+     "session_type": "human",
+     "app_version": "v1",
+     "uxid": "chart-line",
+     "metric": "rage_per_click",
+     "value": 0.01685393258427,
+     "n_field": "n_sessions",
+     "n": 5
+    }
+   ],
+   "rationale": "The high rage_per_click rate for the chart-line element suggests that users are experiencing frustration when interacting with it. Adding a tooltip to display trip data when hovering over the line chart may help reduce this frustration and improve user experience.",
+   "literature": [],
+   "expected_effect": "Reduced rage clicks and improved user satisfaction",
+   "retest_metric": "rage_per_click",
+   "simulated_only": false,
+   "id": "P1",
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T15:24:22+00:00",
+   "review_note": "Approve. Right fix; stronger evidence is 91 of 178 line-chart clicks dead (gold_element_friction human v1 chart-line). Built as proposed: tooltips on the line chart only."
+  },
+  {
+   "title": "Enhance kpi-avg-fare visibility",
+   "target_kind": "element",
+   "target": "kpi-avg-fare",
+   "uxid": "kpi-avg-fare",
+   "change": "Increase the font size of the kpi-avg-fare text",
+   "evidence": [
+    {
+     "evidence_id": "gold_element_friction|human|v1|kpi-avg-fare",
+     "table": "gold_element_friction",
+     "session_type": "human",
+     "app_version": "v1",
+     "uxid": "kpi-avg-fare",
+     "metric": "rage_per_click",
+     "value": 0.08333333333333,
+     "n_field": "n_sessions",
+     "n": 4
+    }
+   ],
+   "rationale": "The high rage_per_click rate for the kpi-avg-fare element suggests that users are having difficulty interacting with it. Increasing the font size of the kpi-avg-fare text may help improve visibility and reduce user frustration.",
+   "literature": [],
+   "expected_effect": "Improved user satisfaction and reduced rage clicks",
+   "retest_metric": "rage_per_click",
+   "simulated_only": false,
+   "id": "P2",
+   "status": "rejected",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T15:24:17+00:00",
+   "review_note": "All 24 clicks on the card were dead clicks: it looks clickable. A bigger font does not address that."
+  },
+  {
+   "title": "Simplify chart-bar interaction",
+   "target_kind": "element",
+   "target": "chart-bar",
+   "uxid": "chart-bar",
+   "change": "Remove unnecessary chart-bar features to reduce cognitive load",
+   "evidence": [
+    {
+     "evidence_id": "gold_element_friction|human|v1|chart-bar",
+     "table": "gold_element_friction",
+     "session_type": "human",
+     "app_version": "v1",
+     "uxid": "chart-bar",
+     "metric": "rage_per_click",
+     "value": 0.02564102564103,
+     "n_field": "n_sessions",
+     "n": 6
+    }
+   ],
+   "rationale": "The relatively low rage_per_click rate for the chart-bar element suggests that users are generally able to interact with it successfully. However, simplifying the chart-bar interaction by removing unnecessary features may help reduce cognitive load and improve user experience.",
+   "literature": [],
+   "expected_effect": "Improved user satisfaction and reduced rage clicks",
+   "retest_metric": "rage_per_click",
+   "simulated_only": false,
+   "id": "P3",
+   "status": "rejected",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T15:24:17+00:00",
+   "review_note": "Too vague to build; its own rationale says users manage the bar chart."
+  },
+  {
+   "title": "Improve kpi-total-trips visibility",
+   "target_kind": "element",
+   "target": "kpi-total-trips",
+   "uxid": "kpi-total-trips",
+   "change": "Move the kpi-total-trips element to a more prominent location on the dashboard",
+   "evidence": [
+    {
+     "evidence_id": "gold_element_friction|human|v1|kpi-total-trips",
+     "table": "gold_element_friction",
+     "session_type": "human",
+     "app_version": "v1",
+     "uxid": "kpi-total-trips",
+     "metric": "rage_per_click",
+     "value": 0.08333333333333,
+     "n_field": "n_sessions",
+     "n": 4
+    }
+   ],
+   "rationale": "The high rage_per_click rate for the kpi-total-trips element suggests that users are having difficulty finding or interacting with it. Moving the kpi-total-trips element to a more prominent location on the dashboard may help improve visibility and reduce user frustration.",
+   "literature": [],
+   "expected_effect": "Improved user satisfaction and reduced rage clicks",
+   "retest_metric": "rage_per_click",
+   "simulated_only": false,
+   "id": "P4",
+   "status": "rejected",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T15:24:17+00:00",
+   "review_note": "One rage click in 4 sessions is not evidence of a problem."
+  },
+  {
+   "title": "Improve filter functionality",
+   "target_kind": "element",
+   "target": "filter-borough",
+   "uxid": "filter-borough",
+   "change": "Enhance the filter-borough element to make it easier for users to filter data by borough",
+   "evidence": [
+    {
+     "evidence_id": "gold_goal_summary|human|v1|G2|filter|compute_derived_value",
+     "table": "gold_goal_summary",
+     "session_type": "human",
+     "app_version": "v1",
+     "goal_id": "G2",
+     "goal_cats": "filter|compute_derived_value",
+     "metric": "success_rate",
+     "value": 0.0,
+     "n_field": "n_goals",
+     "n": 6,
+     "uxid": null
+    }
+   ],
+   "rationale": "The low success rate for goal G2, which involves filtering data, suggests that users are having difficulty using the filter-borough element. Enhancing this element to make it easier for users to filter data by borough may help improve the success rate and user satisfaction.",
+   "literature": [],
+   "expected_effect": "Improved success rate and user satisfaction",
+   "retest_metric": "success_rate",
+   "simulated_only": false,
+   "id": "P5",
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T15:24:17+00:00",
+   "review_note": "Approve. G2 0 of 6 correct; 5 answered the all-borough fare. Built as: borough filter shown inline in the header instead of the ... menu."
+  }
+ ],
+ "rejected_by_validator": [
+  {
+   "title": "Enhance goal achievement",
+   "target_kind": "behavior",
+   "target": "G1",
+   "uxid": null,
+   "change": "Provide additional guidance or support to help users achieve goal G1",
+   "evidence": [
+    {
+     "evidence_id": "gold_goal_summary|human|v1|G1|compute_derived_value|retrieve_value",
+     "table": "gold_goal_summary",
+     "session_type": "human",
+     "app_version": "v1",
+     "goal_id": "G1",
+     "goal_cats": "compute_derived_value|retrieve_value",
+     "metric": "success_rate",
+     "value": 0.5,
+     "n_field": "n_goals",
+     "n": 6,
+     "uxid": null
+    }
+   ],
+   "rationale": "The moderate success rate for goal G1 suggests that users are having some difficulty achieving this goal. Providing additional guidance or support may help improve the success rate and user satisfaction.",
+   "literature": [],
+   "expected_effect": "Improved success rate and user satisfaction",
+   "retest_metric": "success_rate",
+   "simulated_only": false,
+   "problems": [
+    "unknown behavior 'G1'"
+   ]
+  }
+ ],
+ "snapshot_note": "Fetched via Genie from gold_design_proposals_raw (loop scope: 6 human v1 sessions). draft_json and evidence_json transcribed in full."
+}

@@ -9,6 +9,7 @@
 // shows March 2026, one point per day).
 //
 // Usage: CHROMIUM=... node demo/test/agent_study.mjs [--n 12] [--seed 1] [--out dir] [--concurrency 4] [--mode both]
+//        [--versions 1,2]   (3 = build-1, v1 plus the approved ai-gen-loop1 changes)
 import { chromium } from 'playwright-core';
 import { spawn } from 'child_process';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { fileURLToPath } from 'url';
@@ -17,6 +18,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const dash = path.join(here, '..', 'dashboard');
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const N = +arg('n', 12), SEED = +arg('seed', 1), CONC = +arg('concurrency', 4), MODE = arg('mode', 'both');
+const VERSIONS = arg('versions', '1,2').split(',').map(Number);  // e.g. --versions 1,3 re-tests build-1 against v1
 const OUTDIR = path.resolve(arg('out', fs.mkdtempSync(path.join(os.tmpdir(), 'agent-study-'))));  // absolute: the collector runs in another cwd
 const PORT = 9100 + Math.floor(Math.random() * 200);
 const evfile = path.join(OUTDIR, 'events.jsonl');
@@ -336,7 +338,7 @@ const server = spawn('python3', [path.join(dash, 'app.py'), '--port', String(POR
 await sleep(900);
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM, headless: true });
 const jobs = [];
-for (const mode of MODE === 'both' ? ['tasks', 'goals'] : [MODE]) for (const v of [1, 2]) for (let i = 0; i < N; i++) jobs.push({ mode, v, i });
+for (const mode of MODE === 'both' ? ['tasks', 'goals'] : [MODE]) for (const v of VERSIONS) for (let i = 0; i < N; i++) jobs.push({ mode, v, i });
 let done = 0; const failures = [];
 async function worker() {
   while (jobs.length) {
@@ -353,7 +355,7 @@ async function worker() {
       const bot = new Bot(page, r);
       if (j.mode === 'tasks') { await page.waitForSelector('#task-q:not(:has-text("Loading"))'); await runTasks(bot, j.v); }
       else {
-        if (r() < 0.5) await page.check('#g-consent');
+        if (r() < 0.5 && await page.isVisible('#g-consent')) await page.check('#g-consent');  // hidden when the assistant is off
         await page.click('#g-start'); await sleep(300); await runGoals(bot, j.v);
       }
       await sleep(2600);  // periodic SDK flush

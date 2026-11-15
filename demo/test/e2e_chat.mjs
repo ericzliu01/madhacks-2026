@@ -110,6 +110,23 @@ await three.waitForSelector('#g-start'); await three.click('#g-start');
 await three.waitForSelector('#g-work:not([hidden])');
 const goalCounter = await three.textContent('#g-n'), introCount = await three.textContent('#g-count');
 await three.close();
+// build-1 (v=3): v1 plus only the approved ai-gen-loop1 changes (P1 line tooltips, P5 inline filter)
+const b1 = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+await b1.goto(`http://127.0.0.1:${PORT}/?study=1&pid=C07&st=agent&v=3`);
+await b1.waitForSelector('#line .scatterlayer .trace path.js-line');
+const build1 = await b1.evaluate(() => {
+  const vis = (q) => { const el = document.querySelector(q); return !!el && el.offsetParent !== null; };
+  const bar = document.getElementById('bar'), line = document.getElementById('line');
+  return { lineTips: line.data.every((t) => t.hoverinfo !== 'none'), barTips: bar.data.every((t) => t.hoverinfo === 'none'),
+    inline: vis('#filter-inline'), menu: vis('#menu-more'), truncated: bar.layout.yaxis.range[0] > 0,
+    sameColors: line.data[0].line.color === '#8aa1b8', fakeCard: getComputedStyle(document.querySelector('.kpi.fake-link')).cursor === 'pointer',
+    label: document.getElementById('ver').textContent };
+});
+let b1Tip = '';
+{ const [x, y] = await b1.evaluate(() => { const el = document.querySelector('#line .scatterlayer .trace path.js-line'); const q = el.getPointAtLength(el.getTotalLength() / 2).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; });
+  for (const dy of [0, -4, 4, -8, 8, -12, 12, -20, 20]) { await b1.mouse.move(x, y + dy, { steps: 2 }); await new Promise((r) => setTimeout(r, 200));
+    b1Tip = await b1.evaluate(() => document.querySelector('#line .hoverlayer')?.textContent || ''); if (b1Tip) break; } }
+await b1.close();
 const r1 = await runBot(1, true);
 const r2 = await runBot(2, false);
 await browser.close(); server.kill();
@@ -145,7 +162,10 @@ const checks = [
   ['pasted G5 goal still answered correctly by the stub', of(v2, 'goal_outcome').find((e) => e.goal === 'G5')?.status === 'correct'],
   ['default link: no assistant, no button, no prompt-text consent box', noChat],
   ['default link: 3 goals per session (counter and intro say 3)', goalCounter.trim() === '1 / 3' && introCount === '3'],
-  ['every event is st=agent, app id set', [...v1, ...v2].every((e) => e.st === 'agent' && /^taxi-ops-demo-r2-v[12]$/.test(e.app))],
+  ['build-1 (v=3): line-chart tooltips on and a tooltip appears on hover', build1.lineTips && b1Tip.length > 0],
+  ['build-1 (v=3): borough filter inline, "..." menu gone', build1.inline && !build1.menu],
+  ['build-1 (v=3): everything not approved stays as in v1 (bar tooltips off, truncated axis, v1 colors, fake-clickable card)', build1.barTips && build1.truncated && build1.sameColors && build1.fakeCard && build1.label === '(design v3)'],
+  ['every event is st=agent, app id set', [...v1, ...v2].every((e) => e.st === 'agent' && /^taxi-ops-demo-r2-v[123]$/.test(e.app))],
   ['no query string in recorded path', !JSON.stringify(v1).includes('study=1') && !JSON.stringify(v1).includes('pid=C01')],
 ];
 for (const [n, ok] of checks) console.log(ok ? 'PASS' : 'FAIL', n);

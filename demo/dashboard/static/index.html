@@ -19,8 +19,8 @@
   .kpi .v { font-size:26px; font-weight:700; }
   .kpi .l { color:var(--muted); font-size:12px; }
   /* PLANTED FLAW F4 (v1 only): a non-interactive KPI card styled as if it were clickable */
-  body.v1 .kpi.fake-link { cursor:pointer; }
-  body.v1 .kpi.fake-link:hover { box-shadow:0 0 0 2px var(--accent); }
+  body:not(.v2) .kpi.fake-link { cursor:pointer; }
+  body:not(.v2) .kpi.fake-link:hover { box-shadow:0 0 0 2px var(--accent); }
   .row { display:grid; grid-template-columns: 1fr 1.6fr; gap:12px; }
   .toolbar { position:relative; display:flex; gap:8px; align-items:center; }
   button, select, input[type=text] { font:inherit; padding:5px 9px; }
@@ -171,7 +171,14 @@
     store.set(key, v);
     return v;
   }
-  const V = sticky('v', () => (Math.random() < 0.5 ? '1' : '2')) === '2' ? 2 : 1;  // 1 = planted flaws, 2 = fixed; random split if unset
+  // 1 = planted flaws, 2 = hand-built fix of all flaws, 3 = build-1: v1 plus only the changes approved in the designer
+  // loop (proposal set ai-gen-loop1: P1 line-chart tooltips, P5 inline borough filter). Random 1/2 split if unset.
+  const V = ({ '2': 2, '3': 3 })[sticky('v', () => (Math.random() < 0.5 ? '1' : '2'))] || 1;
+  const FIX = {
+    lineTooltips: V !== 1,   // ai-gen-loop1 P1 (approved)
+    inlineFilter: V !== 1,   // ai-gen-loop1 P5 (approved)
+    other: V === 2           // F1 axis, F2 colors/legend, F4 KPI card, bar tooltips, B3: only in the hand-built v2
+  };
   const STUDY = qs.get('study') !== '0';            // study mode is the default; ?study=0 shows the bare dashboard
   const PID = sticky('pid', () => 'P-' + Math.random().toString(36).slice(2, 8).toUpperCase());
   // goals (default): open-ended goals worked on with the chat assistant. tasks: the original scripted task panel.
@@ -197,7 +204,7 @@
   // ---------------------------------------------------------------- telemetry (SDK)
   const rec = UXTelemetry.init({
     endpoint: '/events',
-    appId: 'taxi-ops-demo-r2-v' + V,                // r2 = design revision 2 (no tooltips in v1, F5; assistant visible in both)
+    appId: 'taxi-ops-demo-r2-v' + V,                // r2 = design revision 2 (no tooltips in v1, F5); v3 = build-1
     consent: true,                                  // explicit opt-in is required by the SDK
     sessionType: qs.get('st') || 'human',
     participantId: PID,
@@ -227,13 +234,13 @@
       title: { text: 'Total trips by borough', font: { size: 14 } },
       height: 330, margin: { t: 40, l: 55, r: 10, b: 40 },
       // PLANTED FLAW F1 (v1): y-axis truncated just below the smallest value, exaggerating differences.
-      yaxis: V === 1 ? { range: [lo * 0.9, hi * 1.02] } : { range: [0, hi * 1.12] }
+      yaxis: !FIX.other ? { range: [lo * 0.9, hi * 1.02] } : { range: [0, hi * 1.12] }
     };
     const trace = { type: 'bar', x: names, y: totals, marker: { color: '#2272b4' } };
     // PLANTED FLAW F5 (v1): no hover tooltips. hoverinfo 'none' hides the tooltip but still fires hover/click events,
     // so hovering is still recorded and chart points can still be selected for the assistant.
-    if (V === 1) trace.hoverinfo = 'none';
-    if (V === 2) { trace.text = totals.map(t => t.toLocaleString()); trace.textposition = 'outside'; }
+    if (!FIX.other) trace.hoverinfo = 'none';         // build-1 keeps this: only line-chart tooltips were approved
+    if (FIX.other) { trace.text = totals.map(t => t.toLocaleString()); trace.textposition = 'outside'; }
     Plotly.newPlot('bar', [trace], layout, { displayModeBar: false });
   }
 
@@ -243,14 +250,14 @@
   function renderLine() {
     const traces = sel(borough).map((n) => ({
       type: 'scatter', mode: 'lines', name: n, x: data.dates, y: data.boroughs[n].trips,
-      line: { color: (V === 1 ? V1_COLORS : V2_COLORS)[names.indexOf(n)], width: 2 },
-      hoverinfo: V === 1 ? 'none' : undefined           // F5: no tooltips in v1
+      line: { color: (!FIX.other ? V1_COLORS : V2_COLORS)[names.indexOf(n)], width: 2 },
+      hoverinfo: FIX.lineTooltips ? undefined : 'none'  // F5: no tooltips in v1
     }));
     const layout = {
       title: { text: 'Daily trips', font: { size: 14 } }, height: 330, margin: { t: 40, l: 55, r: 10, b: 60 },
-      legend: V === 1 ? { font: { size: 8, color: '#cfcfcf' }, orientation: 'h', y: -0.3 }
+      legend: !FIX.other ? { font: { size: 8, color: '#cfcfcf' }, orientation: 'h', y: -0.3 }
                       : { font: { size: 13, color: '#1b3139' }, orientation: 'h', y: -0.25 },
-      hovermode: V === 1 ? 'closest' : 'x unified'
+      hovermode: !FIX.other ? 'closest' : 'x unified'
     };
     Plotly.react('line', traces, layout, { displayModeBar: false });
   }
@@ -274,14 +281,14 @@
     });
   });
   // PLANTED FLAW F3 (v1): the filter is only reachable via the "..." menu; v2 shows it inline.
-  if (V === 2) document.getElementById('filter-inline').hidden = false;
+  if (FIX.inlineFilter) document.getElementById('filter-inline').hidden = false;
   const more = document.getElementById('more-panel');
   const moreBtn = document.getElementById('menu-more');
-  if (V === 2) moreBtn.hidden = true;
+  if (FIX.inlineFilter) moreBtn.hidden = true;
   moreBtn.addEventListener('click', () => { more.hidden = !more.hidden; });
 
   // PLANTED FLAW F4: in v1 the Avg-fare card looks clickable (pointer + hover ring) but does nothing.
-  if (V === 2) document.querySelector('.kpi.fake-link').classList.remove('fake-link');
+  if (FIX.other) document.querySelector('.kpi.fake-link').classList.remove('fake-link');
 
   // ---------------------------------------------------------------- chat assistant (stub with planted behaviors B1-B5)
   // Same content-token rule as chatbot.tokens() / overlap() in Python: lowercase alphanumerics minus stopwords,
@@ -374,7 +381,7 @@
     if (current) { goalTurn++; rec.setTurn(goalTurn); }
     const sel = selection, intents = current ? prevIntents.slice() : [];
     addMsg('user', text);
-    const typing = V === 2 ? addMsg('bot typing', 'Assistant is working\u2026') : null;  // B3: v1 shows nothing
+    const typing = FIX.other ? addMsg('bot typing', 'Assistant is working\u2026') : null;  // B3: v1 shows nothing
     const t0 = performance.now();
     let r;
     try {
@@ -452,7 +459,7 @@
     gshow('g-work');
     borough = 'All'; ['borough-inline', 'borough-menu'].forEach(id => { $g(id).value = 'All'; });
     more.hidden = true; renderKpis(); renderLine();
-    if (!chatEl.hidden || V === 1) addMsg('sys', '\u2014 Goal ' + (gidx + 1) + ' \u2014');
+    if (!chatEl.hidden || V !== 2) addMsg('sys', '\u2014 Goal ' + (gidx + 1) + ' \u2014');
     rec.setGoal(current.id, { categories: current.categories, prompt: current.prompt });
   }
   if (STUDY && MODE === 'goals') {

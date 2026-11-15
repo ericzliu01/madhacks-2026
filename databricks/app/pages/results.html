@@ -6,7 +6,7 @@
 <title>Taxi Ops Study Results</title>
 <style>
   :root { --ink:#1b3139; --muted:#5a6f77; --line:#dce0e2; --bg:#f9f7f4; --card:#fff;
-          --v1:#b8541c; --v2:#2272b4; --sim:#7a5c00; --simbg:#fff4d6; --human:#1d6b3a; --humanbg:#e3f4e8; --bad:#a3271d; }
+          --v1:#b8541c; --v2:#2272b4; --v3:#1d6b3a; --sim:#7a5c00; --simbg:#fff4d6; --human:#1d6b3a; --humanbg:#e3f4e8; --bad:#a3271d; }
   * { box-sizing: border-box; }
   body { margin:0; font:14px/1.45 system-ui, sans-serif; color:var(--ink); background:var(--bg); }
   header { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; justify-content:space-between;
@@ -34,7 +34,7 @@
   .pair .track { height:8px; background:#eef0f1; border-radius:4px; overflow:hidden; }
   .pair .bar { height:100%; border-radius:4px; }
   .pair .v { font-size:12px; text-align:right; font-variant-numeric:tabular-nums; }
-  .bar.v1 { background:var(--v1); } .bar.v2 { background:var(--v2); }
+  .bar.v1 { background:var(--v1); } .bar.v2 { background:var(--v2); } .bar.v3 { background:var(--v3); }
   .delta.up { color:var(--human); } .delta.down { color:var(--bad); }
   .legend { display:flex; gap:14px; font-size:12px; color:var(--muted); margin-bottom:8px; }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
@@ -72,11 +72,11 @@
   const ORDER = { human: 0, agent: 1, simulated: 2, human_r1: 3, agent_r1: 4 };
   const byType = (a, b) => (ORDER[a] ?? 1) - (ORDER[b] ?? 1) || String(a).localeCompare(String(b));
 
-  function pairBars(r1, r2, n1, n2) {
+  function pairBars(r1, r2, n1, n2, b = 'v2') {
     const row = (lbl, cls, r, n) => r == null
       ? `<span class="lbl">${lbl}</span><span class="muted" style="font-size:12px">no trials</span><span></span>`
       : `<span class="lbl">${lbl}</span><div class="track" title="${pct(r)} of ${n}"><div class="bar ${cls}" style="width:${Math.max(r * 100, 1.5)}%"></div></div><span class="v">${pct(r)}</span>`;
-    return `<div class="pair">${row('v1', 'v1', r1, n1)}${row('v2', 'v2', r2, n2)}</div>`;
+    return `<div class="pair">${row('v1', 'v1', r1, n1)}${row(b, b, r2, n2)}</div>`;
   }
   function delta(a, b, goodIsUp) {
     if (a == null || b == null) return '–';
@@ -146,12 +146,14 @@
       <th class="num">Latency</th><th class="num">Goal abandoned / over-trust</th><th class="num">n v1 / v2</th></tr></thead>
       <tbody>${body}</tbody></table></div></section>`;
   }
+  // v3 = build-1: v1 plus only the changes a UX developer approved from the designer loop (ai-gen-loop1 P1, P5)
   function goalSection(st, rows) {
+    const cmp = rows.some((r) => r.app_version === 'v3') ? 'v3' : 'v2';
     const by = {}; rows.forEach((r) => { (by[r.goal_id] = by[r.goal_id] || { cats: r.goal_cats })[r.app_version] = r; });
     const body = Object.keys(by).sort().map((g) => {
-      const a = by[g].v1 || {}, b = by[g].v2 || {};
+      const a = by[g].v1 || {}, b = by[g][cmp] || {};
       return `<tr><td><b>${esc(g)}</b><div class="muted" style="font-size:12px">${esc(String(by[g].cats || '').replace(/\|/g, ', '))}</div></td>
-        <td>${pairBars(a.success_rate, b.success_rate, a.n_goals, b.n_goals)}</td>
+        <td>${pairBars(a.success_rate, b.success_rate, a.n_goals, b.n_goals, cmp)}</td>
         <td class="num">${delta(a.success_rate, b.success_rate, true)}</td>
         <td class="num">${arrow(a.abandon_rate, b.abandon_rate, pct)}</td>
         <td class="num">${arrow(a.avg_turns, b.avg_turns, (x) => (x == null ? '–' : x.toFixed(1)))}</td>
@@ -159,12 +161,13 @@
         <td class="num">${a.n_goals_pasted_goal ?? 0} / ${b.n_goals_pasted_goal ?? 0}<div class="muted" style="font-size:11px">success w/o: ${arrow(a.success_rate_excl_pasted, b.success_rate_excl_pasted, pct)}</div></td>
         <td class="num">${a.n_goals ?? 0} / ${b.n_goals ?? 0}</td></tr>`;
     }).join('');
-    return `<section class="card"><h2>${tagFor(st)} Chat goals, v1 vs v2</h2>
-      <p class="sub">Open-ended goals worked on with the assistant. Success = final answer within tolerance of the computed ground truth.
+    const c2 = cmp === 'v3' ? 'build-1 (v3: v1 + approved line-chart tooltips and inline borough filter)' : 'v2 (fixed)';
+    return `<section class="card"><h2>${tagFor(st)} Goals, v1 vs ${cmp}</h2>
+      <p class="sub">Goals answered from the dashboard (with the assistant only in sessions where it was switched on). Success = final answer within tolerance of the computed ground truth.
       "Pasted goal" = the first prompt was the goal text pasted into the chat (paste + similarity ≥ 0.8); "success w/o" repeats success without those goals.</p>
-      <div class="legend"><span><i style="background:var(--v1)"></i>v1 (planted behaviors)</span><span><i style="background:var(--v2)"></i>v2 (fixed)</span></div>
+      <div class="legend"><span><i style="background:var(--v1)"></i>v1 (planted behaviors)</span><span><i style="background:var(--${cmp})"></i>${c2}</span></div>
       <div class="scroll"><table><thead><tr><th>Goal</th><th>Success rate</th><th class="num">Change</th><th class="num">Abandoned</th>
-      <th class="num">Turns</th><th class="num">To first prompt</th><th class="num">Pasted goal v1 / v2</th><th class="num">n v1 / v2</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+      <th class="num">Turns</th><th class="num">To first prompt</th><th class="num">Pasted goal v1 / ${cmp}</th><th class="num">n v1 / ${cmp}</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
   }
 
   function proposalSections(sets) {
