@@ -23,7 +23,7 @@ const logAxis = {};
 async function runBot(v, consent) {
   const before = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').split('\n').filter(Boolean).length : 0;
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  await page.goto(`http://127.0.0.1:${PORT}/?study=1&chat=1&pid=C0${v}&st=agent&v=${v}`);
+  await page.goto(`http://127.0.0.1:${PORT}/?study=1&chat=1&goals=all&pid=C0${v}&st=agent&v=${v}`);
   await page.waitForSelector('#g-start');
   await page.waitForSelector('#line .scatterlayer .trace');
   logAxis[v] = await page.evaluate(() => [...document.querySelectorAll('#line, #bar')].map((gd) => gd.data.map((t) => t.hoverinfo || 'all').join()).join('/'));
@@ -103,6 +103,13 @@ await plain.waitForSelector('#g-start');
 const noChat = await plain.evaluate(() => ['#chat', '#chat-launch', '#g-consent'].every((q) => {
   const el = document.querySelector(q); return !el || el.offsetParent === null; }));
 await plain.close();
+// default link: 3 goals per session
+const three = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+await three.goto(`http://127.0.0.1:${PORT}/?study=1&pid=C08&st=agent&v=2`);
+await three.waitForSelector('#g-start'); await three.click('#g-start');
+await three.waitForSelector('#g-work:not([hidden])');
+const goalCounter = await three.textContent('#g-n'), introCount = await three.textContent('#g-count');
+await three.close();
 const r1 = await runBot(1, true);
 const r2 = await runBot(2, false);
 await browser.close(); server.kill();
@@ -137,6 +144,7 @@ const checks = [
   ['paste: typed prompts are not flagged and stay below 0.8', of(v1, 'prompt_submit').every((e) => e.pasted === false && e.goal_sim < 0.8)],
   ['pasted G5 goal still answered correctly by the stub', of(v2, 'goal_outcome').find((e) => e.goal === 'G5')?.status === 'correct'],
   ['default link: no assistant, no button, no prompt-text consent box', noChat],
+  ['default link: 3 goals per session (counter and intro say 3)', goalCounter.trim() === '1 / 3' && introCount === '3'],
   ['every event is st=agent, app id set', [...v1, ...v2].every((e) => e.st === 'agent' && /^taxi-ops-demo-r2-v[12]$/.test(e.app))],
   ['no query string in recorded path', !JSON.stringify(v1).includes('study=1') && !JSON.stringify(v1).includes('pid=C01')],
 ];

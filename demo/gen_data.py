@@ -145,6 +145,12 @@ goals = [
     },
 ]
 
+# Goals shown to participants by default (3 per session, about 5-6 minutes); ?goals=all shows all five. Kept: one goal
+# per chart flaw family (G1 bar chart, G2 filter + fare card, G3 line chart without tooltips).
+ACTIVE = {"G1", "G2", "G3"}
+for g in goals:
+    g["active"] = g["id"] in ACTIVE
+
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "data.json").write_text(json.dumps(data))
 (OUT / "scenarios.json").write_text(json.dumps(scenarios, indent=1))

@@ -18,9 +18,9 @@ counts, never significance. Cursor and chart events are not eye tracking and onl
 type), and your answers. No name or account is stored: you get an id like P01. Some parts of the dashboard are
 deliberately harder to use than others. You can stop at any time."
 
-## During (about 10 minutes)
+## During (about 5-6 minutes)
 1. Open the plain app URL (no parameters). Click **Start**.
-2. Work through the 5 goals. Don't help or hint; if asked, say "do what you would do at work".
+2. Work through the 3 goals (G1-G3; `&goals=all` would show all 5). Don't help or hint; if asked, say "do what you would do at work".
 3. Note anything surprising on paper (pid from `/status` is not shown; note the time instead).
 
 ## After

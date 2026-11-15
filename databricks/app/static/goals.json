@@ -10,7 +10,8 @@
   "answer_format": "a percentage, e.g. 12.5 (within 2 points counts as correct)",
   "answer": 8.5,
   "tolerance": 2.0,
-  "type": "number"
+  "type": "number",
+  "active": true
  },
  {
   "id": "G2",
@@ -23,7 +24,8 @@
   "answer_format": "dollars and cents, e.g. 18.40 (within 5 cents counts as correct)",
   "answer": 21.75,
   "tolerance": 0.05,
-  "type": "number"
+  "type": "number",
+  "active": true
  },
  {
   "id": "G3",
@@ -36,7 +38,8 @@
   "answer_format": "a date written as YYYY-MM-DD",
   "answer": "2026-03-18",
   "tolerance": 0,
-  "type": "date"
+  "type": "date",
+  "active": true
  },
  {
   "id": "G4",
@@ -55,7 +58,8 @@
    "borough": "Bronx",
    "trips": 228,
    "ratio_to_usual": 0.255
-  }
+  },
+  "active": false
  },
  {
   "id": "G5",
@@ -67,6 +71,7 @@
   "answer_format": "a whole number of trips (within 150 counts as correct)",
   "answer": 1760,
   "tolerance": 150,
-  "type": "number"
+  "type": "number",
+  "active": false
  }
 ]

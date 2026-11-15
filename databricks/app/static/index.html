@@ -111,7 +111,7 @@
   <aside id="goals" class="card" data-ux-region="study-panel" hidden>
     <div id="g-intro">
       <h2>Welcome</h2>
-      <div class="q">You'll get 5 goals from colleagues at Taxi Ops. Use the dashboard<span class="asst-only"> and its assistant</span> however you like,
+      <div class="q">You'll get <span id="g-count">3</span> short questions about Taxi Ops data. Use the dashboard<span class="asst-only"> and its assistant</span> however you like,
         then give your final answer. Answers can be wrong; please answer as you would at work.</div>
       <label class="consent asst-only"><input type="checkbox" id="g-consent" data-ux-id="consent-text">
         <span>Record the text of my questions to the assistant. <small>(Unchecked: only their length and a one-way hash are kept.)</small></span></label>
@@ -185,12 +185,14 @@
   if (STUDY && MODE === 'goals') { document.getElementById('study').hidden = true; document.getElementById('goals').hidden = false; }
   document.getElementById('ver').textContent = '(design v' + V + ')';
 
-  const [data, scenarios, goals] = await Promise.all([
+  const [data, scenarios, allGoals] = await Promise.all([
     fetch('data.json').then(r => r.json()),
     fetch('scenarios.json').then(r => r.json()),
     fetch('goals.json').then(r => r.json())
   ]);
   const names = Object.keys(data.boroughs);
+  // 3 goals per session by default; ?goals=all shows all five (tests and the simulator use all)
+  const goals = qs.get('goals') === 'all' ? allGoals : allGoals.filter((g) => g.active !== false);
 
   // ---------------------------------------------------------------- telemetry (SDK)
   const rec = UXTelemetry.init({
@@ -454,6 +456,7 @@
     rec.setGoal(current.id, { categories: current.categories, prompt: current.prompt });
   }
   if (STUDY && MODE === 'goals') {
+    $g('g-count').textContent = goals.length;
     $g('g-start').addEventListener('click', () => { rec.setCaptureText($g('g-consent').checked); nextGoal(); });
     $g('g-submit').addEventListener('click', () => {
       const a = $g('g-answer').value;

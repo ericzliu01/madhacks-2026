@@ -347,7 +347,7 @@ async function worker() {
     await page.addInitScript(PERCEIVE);
     const pid = `A${j.mode[0]}${j.i.toString().padStart(3, '0')}`;
     try {
-      await page.goto(`http://127.0.0.1:${PORT}/?study=1&mode=${j.mode}&pid=${pid}&st=agent&v=${j.v}`);
+      await page.goto(`http://127.0.0.1:${PORT}/?study=1&mode=${j.mode}&goals=all&pid=${pid}&st=agent&v=${j.v}`);
       await page.waitForSelector('#line .scatterlayer .trace path.js-line');
       await sleep(500);
       const bot = new Bot(page, r);
