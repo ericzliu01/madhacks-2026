@@ -1,7 +1,7 @@
 {
  "name": "claude-session",
  "designer": "Claude (Opus 5.5, Claude Code session)",
- "generated_at": "20261115T110846Z",
+ "generated_at": "20261115T112101Z",
  "evidence_source": "exported gold rows (workspace_rows.json)",
  "summary": "Six changes, strongest evidence first: three chart and page fixes from the task study (fake-clickable KPI, hidden filter, truncated axis) and three assistant fixes from the chat study (wrong derived values, hidden entry point, slow replies). The line chart's colors (F2), the borough misparse (B2) and the ignored selection (B5) also show effects and are candidates for the next round. All evidence is simulated.",
  "literature_note": "No literature rows are verified yet, so no papers are cited.",

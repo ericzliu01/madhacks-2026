@@ -18,6 +18,9 @@ Guardrails, enforced in code, not just asked for in the prompt:
   * a change may cite only evidence rows in the pack; its value and n must match the row, and the session type is copied
     from the row (so simulated evidence is always labeled simulated)
   * a change must target a real dashboard element (data-ux-id) or a planted assistant behavior (B1-B5)
+  * evidence must come from the matching study: assistant behaviors and chat-* elements from the chat tables, page
+    elements from the task tables or from element friction on that same element (catches correct numbers cited for
+    the wrong thing; whether evidence really shows a problem is still the reviewer's call)
   * literature may be cited only from rows marked verified in docs/literature/signal_paper_matrix.csv
   * anything that fails a check goes to `rejected_by_validator` with the reason; nothing is silently dropped
   * every valid change starts as status "pending": only a UX developer's `review --approve` makes it eligible for the
@@ -193,6 +196,24 @@ def call_claude(pack):
 
 
 # ------------------------------------------------------------------------------------------------- validation
+CHAT_TABLES = {"gold_bot_behavior", "gold_goal_summary"}
+TASK_TABLES = {"gold_version_comparison", "gold_task_summary", "gold_element_friction"}
+
+
+def relevance_problem(change, row):
+    """Why a cited row cannot support this change, or None."""
+    chat_target = change["target_kind"] == "behavior" or change["target"].startswith("chat-")
+    if chat_target and row["table"] not in CHAT_TABLES:
+        return f"{row['id']}: {change['target']} is an assistant/chat target but the row is from the task study"
+    if not chat_target and row["table"] not in TASK_TABLES:
+        return f"{row['id']}: {change['target']} is a page element but the row is from the chat study"
+    if row["table"] == "gold_element_friction" and row["keys"].get("uxid") != change["target"]:
+        return f"{row['id']}: friction row is for {row['keys'].get('uxid')}, not {change['target']}"
+    if change["target_kind"] == "behavior" and row["table"] == "gold_bot_behavior" and row["keys"].get("behavior") != change["target"]:
+        return f"{row['id']}: row is for {row['keys'].get('behavior')}, not {change['target']}"
+    return None
+
+
 def close(a, b):
     return a is not None and b is not None and abs(float(a) - float(b)) <= max(0.005, 0.005 * abs(float(b)))
 
@@ -218,6 +239,9 @@ def validate(draft, pack):
                 problems.append(f"{e['evidence_id']}.{e['metric']}: cited {e['value']}, row has {row['metrics'][e['metric']]}")
             if e["n_field"] not in row["n"] or not close(e["n"], row["n"][e["n_field"]]):
                 problems.append(f"{e['evidence_id']}: n {e['n_field']}={e['n']} does not match the row")
+            why = relevance_problem(c, row)
+            if why:
+                problems.append(why)
             cites.append({"evidence_id": row["id"], "table": row["table"], "session_type": row["session_type"],
                           **row["keys"], "metric": e["metric"], "value": row["metrics"].get(e["metric"]),
                           "n_field": e["n_field"], "n": row["n"].get(e["n_field"]),
@@ -306,7 +330,8 @@ def cmd_draft(a, call=call_claude):
             print(f"the ai_gen reply was not valid proposal JSON ({ex}); writing an empty set with the error")
             return write_set(a.name or "ai-gen", "Databricks ai_gen (model chosen by Databricks)", draft, pack,
                              {"error": f"reply was not valid proposal JSON: {ex}"})
-        return write_set(a.name or "ai-gen", "Databricks ai_gen (model chosen by Databricks)", draft, pack)
+        extra = {"snapshot_note": row["snapshot_note"]} if row.get("snapshot_note") else None
+        return write_set(a.name or "ai-gen", "Databricks ai_gen (model chosen by Databricks)", draft, pack, extra)
     pack = json.loads((OUT / "evidence.json").read_text())
     if a.from_file:
         return write_set(a.name or "file", a.designer or "unspecified", parse_draft(Path(a.from_file).read_text()), pack)

@@ -1,0 +1,194 @@
+{
+ "name": "ai-gen",
+ "designer": "Databricks ai_gen (model chosen by Databricks)",
+ "generated_at": "20261115T112128Z",
+ "evidence_source": "gold tables as of 2026-11-15 11:17:53.793454 (snapshot stored with the draft)",
+ "summary": "The proposed changes aim to improve the usability of the Taxi Ops analytics dashboard and its chat assistant. The changes are backed by evidence from the usability study's gold tables, which show differences in success rates, abandon rates, and user satisfaction between version 1 and version 2 of the dashboard. The changes target specific elements of the dashboard and the chat assistant's behavior, with the goal of increasing user success rates and satisfaction.",
+ "literature_note": "No literature rows are verified yet, so no papers are cited.",
+ "changes": [
+  {
+   "title": "Improve chart bar visibility",
+   "target_kind": "element",
+   "target": "chart-bar",
+   "uxid": "chart-bar",
+   "change": "Increase the chart bar's height and width to make it more visible",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T1|retrieve_value",
+     "table": "gold_version_comparison",
+     "session_type": "simulated",
+     "task_id": "T1",
+     "task_category": "retrieve_value",
+     "metric": "success_rate_v1",
+     "value": 0.93333,
+     "n_field": "n_trials_v1",
+     "n": 30,
+     "uxid": null
+    }
+   ],
+   "rationale": "The high success rate for retrieving values in version 1 suggests that the chart bar is effective, but the low success rate for computing derived values in version 1 (0.36667) suggests that the chart bar could be improved to make it easier for users to compute derived values. This is based on simulated user behavior, which may not reflect real user behavior.",
+   "literature": [],
+   "expected_effect": "Increased success rate for computing derived values",
+   "retest_metric": "success_rate_v2",
+   "simulated_only": true,
+   "id": "P1",
+   "status": "pending",
+   "reviewed_by": null,
+   "reviewed_at": null,
+   "review_note": null
+  },
+  {
+   "title": "Improve borough filter accessibility",
+   "target_kind": "element",
+   "target": "filter-borough",
+   "uxid": "filter-borough",
+   "change": "Move the borough filter to a more prominent location on the dashboard",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T4|filter",
+     "table": "gold_version_comparison",
+     "session_type": "simulated",
+     "task_id": "T4",
+     "task_category": "filter",
+     "metric": "success_rate_v1",
+     "value": 0.63333,
+     "n_field": "n_trials_v1",
+     "n": 30,
+     "uxid": null
+    }
+   ],
+   "rationale": "The moderate success rate for filtering in version 1 suggests that the borough filter could be improved to make it more accessible. This is based on simulated user behavior, which may not reflect real user behavior.",
+   "literature": [],
+   "expected_effect": "Increased success rate for filtering",
+   "retest_metric": "success_rate_v2",
+   "simulated_only": true,
+   "id": "P2",
+   "status": "pending",
+   "reviewed_by": null,
+   "reviewed_at": null,
+   "review_note": null
+  },
+  {
+   "title": "Make Avg fare KPI card clickable",
+   "target_kind": "element",
+   "target": "kpi-avg-fare",
+   "uxid": "kpi-avg-fare",
+   "change": "Make the Avg fare KPI card clickable and provide additional information when clicked",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T5|determine_range",
+     "table": "gold_version_comparison",
+     "session_type": "simulated",
+     "task_id": "T5",
+     "task_category": "determine_range",
+     "metric": "success_rate_v1",
+     "value": 0.8,
+     "n_field": "n_trials_v1",
+     "n": 30,
+     "uxid": null
+    }
+   ],
+   "rationale": "The high success rate for determining ranges in version 1 suggests that the Avg fare KPI card is effective, but the fact that it looks clickable but does nothing may be confusing for users. This is based on simulated user behavior, which may not reflect real user behavior.",
+   "literature": [],
+   "expected_effect": "Increased user satisfaction",
+   "retest_metric": "avg_satisfaction",
+   "simulated_only": true,
+   "id": "P3",
+   "status": "pending",
+   "reviewed_by": null,
+   "reviewed_at": null,
+   "review_note": null
+  }
+ ],
+ "rejected_by_validator": [
+  {
+   "title": "Fix chat assistant's slow reply",
+   "target_kind": "behavior",
+   "target": "B3",
+   "uxid": null,
+   "change": "Implement a progress indicator to show that the chat assistant is working on a response",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T2|compute_derived_value",
+     "table": "gold_version_comparison",
+     "session_type": "simulated",
+     "task_id": "T2",
+     "task_category": "compute_derived_value",
+     "metric": "avg_duration_ms_v1",
+     "value": 39616.53333333333,
+     "n_field": "n_trials_v1",
+     "n": 30,
+     "uxid": null
+    }
+   ],
+   "rationale": "The long average duration for computing derived values in version 1 suggests that the chat assistant's slow reply is a problem. This is based on simulated user behavior, which may not reflect real user behavior.",
+   "literature": [],
+   "expected_effect": "Decreased average duration for computing derived values",
+   "retest_metric": "avg_duration_ms_v2",
+   "simulated_only": true,
+   "problems": [
+    "gold_version_comparison|simulated|T2|compute_derived_value: B3 is an assistant/chat target but the row is from the task study"
+   ]
+  },
+  {
+   "title": "Improve chat assistant's derived value computation",
+   "target_kind": "behavior",
+   "target": "B1",
+   "uxid": null,
+   "change": "Improve the chat assistant's ability to compute derived values and provide accurate results",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T2|compute_derived_value",
+     "table": "gold_version_comparison",
+     "session_type": "simulated",
+     "task_id": "T2",
+     "task_category": "compute_derived_value",
+     "metric": "overtrust_rate_v1",
+     "value": 0.64705882352941,
+     "n_field": "n_trials_v1",
+     "n": 30,
+     "uxid": null
+    }
+   ],
+   "rationale": "The high overtrust rate for computing derived values in version 1 suggests that the chat assistant's derived value computation is a problem. This is based on simulated user behavior, which may not reflect real user behavior.",
+   "literature": [],
+   "expected_effect": "Decreased overtrust rate for computing derived values",
+   "retest_metric": "overtrust_rate_v2",
+   "simulated_only": true,
+   "problems": [
+    "gold_version_comparison|simulated|T2|compute_derived_value: B1 is an assistant/chat target but the row is from the task study"
+   ]
+  },
+  {
+   "title": "Improve chat entry point visibility",
+   "target_kind": "behavior",
+   "target": "B4",
+   "uxid": null,
+   "change": "Make the chat entry point more visible and accessible",
+   "evidence": [
+    {
+     "evidence_id": "gold_version_comparison|simulated|T1|retrieve_value",
+     "table": "gold_version_comparison",
+     "session_type": "simulated",
+     "task_id": "T1",
+     "task_category": "retrieve_value",
+     "metric": "avg_satisfaction",
+     "value": null,
+     "n_field": "n_trials_v1",
+     "n": 30,
+     "uxid": null
+    }
+   ],
+   "rationale": "The moderate average satisfaction for retrieving values in version 1 suggests that the chat entry point could be improved to make it more visible and accessible. This is based on simulated user behavior, which may not reflect real user behavior.",
+   "literature": [],
+   "expected_effect": "Increased user satisfaction",
+   "retest_metric": "avg_satisfaction",
+   "simulated_only": true,
+   "problems": [
+    "gold_version_comparison|simulated|T1|retrieve_value: metric 'avg_satisfaction' not in that row",
+    "gold_version_comparison|simulated|T1|retrieve_value: B4 is an assistant/chat target but the row is from the task study"
+   ]
+  }
+ ],
+ "snapshot_note": "Fetched via Genie from gold_design_proposals_raw. draft_json is verbatim; of evidence_json only gold_version_comparison (the one table every citation points into) was transcribed, exactly."
+}

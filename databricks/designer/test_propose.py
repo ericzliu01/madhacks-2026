@@ -81,4 +81,18 @@ check("--from-ai-gen: a non-JSON reply gives an empty set with the error, not a 
 check("08_ai_design_proposals.sql is in sync with the rules in propose.py",
       propose.SQL_08.read_text() == propose.sql_08())
 
+# relevance: right numbers, wrong study / wrong element
+t2 = next(e for e in pack["evidence"] if e["table"] == "gold_version_comparison" and e["keys"]["task_id"] == "T2")
+wrong_study = dict(good, title="B3 from a chart task", target_kind="behavior", target="B3",
+                   evidence=[{"evidence_id": t2["id"], "metric": "avg_duration_ms_v1",
+                              "value": t2["metrics"]["avg_duration_ms_v1"], "n_field": "n_trials_v1", "n": 30}])
+menu = next(e for e in pack["evidence"] if e["table"] == "gold_element_friction" and e["keys"]["uxid"] == "menu-more")
+wrong_elem = dict(good, title="KPI fix from menu clicks", evidence=[{"evidence_id": menu["id"], "metric": "n_dead_clicks",
+                  "value": menu["metrics"]["n_dead_clicks"], "n_field": "n_sessions", "n": menu["n"]["n_sessions"]}])
+ok, rej = propose.validate({"changes": [good, wrong_study, wrong_elem]}, pack)
+why = {c["title"]: " ".join(c["problems"]) for c in rej}
+check("relevance: chat target with task-study evidence rejected", "task study" in why.get("B3 from a chart task", ""))
+check("relevance: friction row for another element rejected", "not kpi-avg-fare" in why.get("KPI fix from menu clicks", ""))
+check("relevance: the matching change still passes", [c["title"] for c in ok] == [good["title"]])
+
 sys.exit(0 if all(results) else 1)
