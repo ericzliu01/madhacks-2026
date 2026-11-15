@@ -1,0 +1,8 @@
+# Databricks App config. The app's service principal needs WRITE VOLUME on the target Volume
+# (plus USE CATALOG and USE SCHEMA); see databricks/app/README.md.
+command: ["python", "app.py"]
+env:
+  - name: EVENTS_VOLUME_PATH
+    value: "/Volumes/workspace/ux_telemetry/raw_events/raw"
+  - name: FLUSH_SECS
+    value: "3"

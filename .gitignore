@@ -3,3 +3,5 @@ events.jsonl
 *.log
 .DS_Store
 databricks/data/
+databricks/app/static/
+databricks/app/events/
