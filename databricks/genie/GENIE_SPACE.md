@@ -19,24 +19,25 @@ You analyze UX telemetry from usability trials of a dashboard. Each trial is one
 - Rage clicks and dead clicks signal frustration or affordance problems. idle_ms and first_action_ms signal hesitation.
   These are proxies, not proof: say so when explaining causes.
 - Rows with session_type = 'simulated' are bot-generated test data, not real people. State this whenever you report results
-  from them.
+  from them. Every gold table has a session_type column: always group or filter by it, never average human and simulated
+  rows together. If the question does not say which, show both, human first.
 - Samples are small. Report counts (n_trials) next to every rate and avoid claims of statistical significance.
 - Exclude nothing silently. If a filter drops rows, say how many.
 ```
 
 ## 3. Example SQL queries (add as tested examples; replace the schema name)
 1. *Which tasks are hardest?*
-   `SELECT task_id, task_category, app_version, success_rate, abandon_rate, n_trials FROM gold_task_summary ORDER BY success_rate ASC`
+   `SELECT session_type, task_id, task_category, app_version, success_rate, abandon_rate, n_trials FROM gold_task_summary ORDER BY session_type, success_rate ASC`
 2. *Did the proposed change (v2) help?*
-   `SELECT task_id, task_category, success_rate_v1, success_rate_v2, success_delta, n_trials_v1, n_trials_v2 FROM gold_version_comparison ORDER BY success_delta DESC`
+   `SELECT session_type, task_id, task_category, success_rate_v1, success_rate_v2, success_delta, n_trials_v1, n_trials_v2 FROM gold_version_comparison ORDER BY session_type, success_delta DESC`
 3. *Which UI elements cause rage clicks?*
-   `SELECT uxid, app_version, n_rage_clicks, n_dead_clicks, rage_per_click FROM gold_element_friction ORDER BY n_rage_clicks DESC`
+   `SELECT session_type, uxid, app_version, n_rage_clicks, n_dead_clicks, rage_per_click FROM gold_element_friction ORDER BY session_type, n_rage_clicks DESC`
 4. *Where do users report satisfaction but answer wrongly (over-trust)?*
-   `SELECT task_id, task_category, app_version, overtrust_rate, n_trials FROM gold_task_summary WHERE overtrust_rate IS NOT NULL ORDER BY overtrust_rate DESC`
+   `SELECT session_type, task_id, task_category, app_version, overtrust_rate, n_trials FROM gold_task_summary WHERE overtrust_rate IS NOT NULL ORDER BY session_type, overtrust_rate DESC`
 5. *Which tasks involve long hesitation before the first action?*
-   `SELECT task_id, app_version, avg_first_action_ms, avg_idle_ms FROM gold_task_summary ORDER BY avg_idle_ms DESC`
+   `SELECT session_type, task_id, app_version, avg_first_action_ms, avg_idle_ms, n_trials FROM gold_task_summary ORDER BY session_type, avg_idle_ms DESC`
 6. *Compare friction by Amar task category.*
-   `SELECT task_category, app_version, AVG(success_rate) AS success_rate, SUM(n_trials) AS n_trials FROM gold_task_summary GROUP BY task_category, app_version`
+   `SELECT session_type, task_category, app_version, SUM(success_rate * n_trials) / SUM(n_trials) AS success_rate, SUM(n_trials) AS n_trials FROM gold_task_summary GROUP BY session_type, task_category, app_version`
 
 ## 4. Benchmarks (2-4 phrasings each; the docs suggest at least 5 questions)
 | Intent | Phrasings | Expected from |

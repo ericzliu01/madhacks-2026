@@ -55,7 +55,16 @@ for f in sorted(sessions.glob("*.jsonl")):
         rows.append([e.get(c) for c in cols])
         n += 1
     db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", rows)
-print(f"loaded {n} bronze events from {sessions}")
+# One simulated session relabelled as a human participant: gold must keep it apart from the simulated rows.
+human_src = sorted(sessions.glob("*.jsonl"))[0]
+hrows = []
+for line in human_src.read_text().splitlines():
+    e = json.loads(line)
+    e.update(sid="human-check", st="human", _source_file="human-check.jsonl")
+    hrows.append([e.get(c) for c in cols])
+db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", hrows)
+n += len(hrows)
+print(f"loaded {n} bronze events from {sessions} (+1 session relabelled human)")
 
 for name in ("02_silver.sql", "03_gold.sql"):
     for stmt in prep((SQL / name).read_text()):
@@ -65,13 +74,17 @@ q = lambda s: [dict(r) for r in db.execute(s)]
 count = lambda t: q(f"SELECT COUNT(*) AS c FROM {t}")[0]["c"]
 print({t: count(t) for t in ("silver_events", "silver_trials", "gold_trial_metrics", "gold_task_summary", "gold_element_friction", "gold_version_comparison")})
 
-cmp = {r["task_id"]: r for r in q("SELECT * FROM gold_version_comparison")}
-friction = q("SELECT * FROM gold_element_friction WHERE app_version = 'v1' ORDER BY n_rage_clicks DESC")
-v2_kpi = q("SELECT COALESCE(SUM(n_rage_clicks), 0) AS r FROM gold_element_friction WHERE app_version = 'v2' AND uxid = 'kpi-avg-fare'")[0]["r"]
+SIM = "session_type = 'simulated'"
+cmp = {r["task_id"]: r for r in q(f"SELECT * FROM gold_version_comparison WHERE {SIM}")}
+friction = q(f"SELECT * FROM gold_element_friction WHERE {SIM} AND app_version = 'v1' ORDER BY n_rage_clicks DESC")
+v2_kpi = q(f"SELECT COALESCE(SUM(n_rage_clicks), 0) AS r FROM gold_element_friction WHERE {SIM} AND app_version = 'v2' AND uxid = 'kpi-avg-fare'")[0]["r"]
+human = q("SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE session_type = 'human'")[0]["n"]
+sim_n = q(f"SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE {SIM}")[0]["n"]
 
 checks = [
     ("silver dedupes nothing it shouldn't (events == bronze)", count("silver_events") == count("bronze_events")),
-    ("one trial per session x task (60 sessions x 5)", count("silver_trials") == 300),
+    ("one trial per session x task (60 simulated + 1 human sessions x 5)", count("silver_trials") == 305),
+    ("gold keeps human trials apart from simulated (5 vs 300)", human == 5 and sim_n == 300),
     ("F4: top v1 rage element is kpi-avg-fare", friction and friction[0]["uxid"] == "kpi-avg-fare" and friction[0]["n_rage_clicks"] > 0),
     ("F4: v2 has no rage clicks on kpi-avg-fare", v2_kpi == 0),
     ("F1: T2 success v1 < 0.5 and v2 > 0.7", cmp["T2"]["success_rate_v1"] < 0.5 < 0.7 < cmp["T2"]["success_rate_v2"]),

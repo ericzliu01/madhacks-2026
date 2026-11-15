@@ -22,12 +22,12 @@ COMMENT ON COLUMN ${catalog}.${schema}.gold_trial_metrics.first_action_ms IS
   'Milliseconds from trial start to the first click, key press, or chart interaction outside the study panel.';
 
 COMMENT ON TABLE ${catalog}.${schema}.gold_task_summary IS
-  'Aggregates of gold_trial_metrics per design version (v1 = current UI, v2 = proposed change) and task. success_rate and abandon_rate are 0-1 fractions.';
+  'Aggregates of gold_trial_metrics per session_type (human or simulated, never mixed), design version (v1 = current UI, v2 = proposed change) and task. success_rate and abandon_rate are 0-1 fractions.';
 COMMENT ON COLUMN ${catalog}.${schema}.gold_task_summary.overtrust_rate IS
   'Share of INCORRECT answers that were rated 4-5 for satisfaction ("satisfied but wrong"). NULL when no incorrect answers.';
 
 COMMENT ON TABLE ${catalog}.${schema}.gold_element_friction IS
-  'Rage and dead clicks per UI element (uxid) and design version. Highest rage_per_click flags elements with affordance problems.';
+  'Rage and dead clicks per session_type, UI element (uxid) and design version. Highest rage_per_click flags elements with affordance problems.';
 
 COMMENT ON TABLE ${catalog}.${schema}.gold_version_comparison IS
-  'v1 vs v2 per task: success_delta = success_rate_v2 - success_rate_v1. Used to judge whether a proposed UI change helped. Small samples: treat as descriptive.';
+  'v1 vs v2 per session_type and task (human and simulated are separate rows): success_delta = success_rate_v2 - success_rate_v1. Used to judge whether a proposed UI change helped. Small samples: treat as descriptive.';

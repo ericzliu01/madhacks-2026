@@ -28,9 +28,10 @@ LEFT JOIN ${catalog}.${schema}.silver_events e
 GROUP BY t.session_id, t.session_type, t.app_id, t.app_version, t.participant_id, t.task_id, t.task_category,
          t.outcome, t.satisfaction, t.duration_ms, t.start_ms;
 
--- Per task x design version: outcomes and friction. overtrust_rate = share of WRONG answers rated satisfied (4-5).
+-- Per session type x task x design version: outcomes and friction. overtrust_rate = share of WRONG answers rated satisfied (4-5).
+-- session_type is a grouping key so simulated (bot) trials are never averaged together with human ones.
 CREATE OR REPLACE TABLE ${catalog}.${schema}.gold_task_summary AS
-SELECT app_version, task_id, task_category,
+SELECT session_type, app_version, task_id, task_category,
        COUNT(*) AS n_trials,
        AVG(CASE WHEN outcome = 'correct' THEN 1.0 ELSE 0.0 END) AS success_rate,
        AVG(CASE WHEN outcome = 'abandoned' THEN 1.0 ELSE 0.0 END) AS abandon_rate,
@@ -45,11 +46,11 @@ SELECT app_version, task_id, task_category,
        SUM(CASE WHEN outcome = 'incorrect' AND satisfaction >= 4 THEN 1.0 ELSE 0.0 END)
          / NULLIF(SUM(CASE WHEN outcome = 'incorrect' THEN 1.0 ELSE 0.0 END), 0) AS overtrust_rate
 FROM ${catalog}.${schema}.gold_trial_metrics
-GROUP BY app_version, task_id, task_category;
+GROUP BY session_type, app_version, task_id, task_category;
 
 -- Which UI elements attract rage / dead clicks (excludes the study panel). Ranks candidate affordance problems.
 CREATE OR REPLACE TABLE ${catalog}.${schema}.gold_element_friction AS
-SELECT app_version, uxid,
+SELECT session_type, app_version, uxid,
        SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END) AS n_clicks,
        SUM(CASE WHEN event_type = 'rage_click' THEN 1 ELSE 0 END) AS n_rage_clicks,
        SUM(CASE WHEN event_type = 'click' AND ptr = TRUE AND interactive = FALSE THEN 1 ELSE 0 END) AS n_dead_clicks,
@@ -58,11 +59,11 @@ SELECT app_version, uxid,
          / NULLIF(SUM(CASE WHEN event_type = 'click' THEN 1.0 ELSE 0.0 END), 0) AS rage_per_click
 FROM ${catalog}.${schema}.silver_events
 WHERE uxid IS NOT NULL AND event_type IN ('click', 'rage_click') AND COALESCE(region, '') <> 'aside:study-panel'
-GROUP BY app_version, uxid;
+GROUP BY session_type, app_version, uxid;
 
--- Before/after for the iteration loop: v1 (current UI) vs v2 (proposed change), per task.
+-- Before/after for the iteration loop: v1 (current UI) vs v2 (proposed change), per session type and task.
 CREATE OR REPLACE TABLE ${catalog}.${schema}.gold_version_comparison AS
-SELECT a.task_id, a.task_category,
+SELECT a.session_type, a.task_id, a.task_category,
        a.success_rate AS success_rate_v1, b.success_rate AS success_rate_v2, b.success_rate - a.success_rate AS success_delta,
        a.abandon_rate AS abandon_rate_v1, b.abandon_rate AS abandon_rate_v2,
        a.avg_duration_ms AS avg_duration_ms_v1, b.avg_duration_ms AS avg_duration_ms_v2,
@@ -70,5 +71,5 @@ SELECT a.task_id, a.task_category,
        a.overtrust_rate AS overtrust_rate_v1, b.overtrust_rate AS overtrust_rate_v2,
        a.n_trials AS n_trials_v1, b.n_trials AS n_trials_v2
 FROM ${catalog}.${schema}.gold_task_summary a
-JOIN ${catalog}.${schema}.gold_task_summary b ON a.task_id = b.task_id
+JOIN ${catalog}.${schema}.gold_task_summary b ON a.task_id = b.task_id AND a.session_type = b.session_type
 WHERE a.app_version = 'v1' AND b.app_version = 'v2';
