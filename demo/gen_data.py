@@ -113,37 +113,34 @@ assert q_min_date == dates[q_min_i]
 goals = [
     {
         "id": "G1", "categories": ["compute_derived_value", "retrieve_value"], "behavior": "B1",
-        "prompt": "Your manager is about to tell the board that Brooklyn was much busier than Queens in March. Before "
-                  "she does, find out how big Brooklyn's lead in total trips really was.",
-        "answer_format": "Brooklyn's lead as a percentage of Queens' total (number, in %)",
+        "prompt": "Brooklyn had more trips than Queens in March. How many percent more? "
+                  "(Brooklyn's total divided by Queens' total, minus 1.)",
+        "answer_format": "a percentage, e.g. 12.5 (within 2 points counts as correct)",
         "answer": pct_gap, "tolerance": 2.0, "type": "number",
     },
     {
         "id": "G2", "categories": ["filter", "compute_derived_value"], "behavior": "B2",
-        "prompt": "Finance is reconciling Bronx receipts for March and needs the typical fare a rider paid there, "
-                  "weighted by trips.",
-        "answer_format": "the fare (number, in $)",
+        "prompt": "What was the average fare for trips in the Bronx in March?",
+        "answer_format": "dollars and cents, e.g. 18.40 (within 5 cents counts as correct)",
         "answer": avg_fare["Bronx"], "tolerance": 0.05, "type": "number",
     },
     {
         "id": "G3", "categories": ["find_extremum", "filter"], "behavior": "B3",
-        "prompt": "Operations wants to schedule driver training on the quietest Queens day of March.",
-        "answer_format": "that date (YYYY-MM-DD)",
+        "prompt": "On which day in March did Queens have the fewest trips?",
+        "answer_format": "a date written as YYYY-MM-DD",
         "answer": q_min_date, "tolerance": 0, "type": "date",
     },
     {
         "id": "G4", "categories": ["find_anomalies", "filter", "retrieve_value"], "behavior": "B5",
-        "prompt": "The Bronx operations lead says one day in March looked off in their numbers. Find the day and work "
-                  "out why it stands out.",
-        "answer_format": "the date (YYYY-MM-DD)",
+        "prompt": "On one day in March, the Bronx had unusually few trips: far fewer than on any other day. Which day was it?",
+        "answer_format": "a date written as YYYY-MM-DD",
         "answer": dates[anomaly_i], "tolerance": 0, "type": "date",
         "detail": {"borough": "Bronx", "trips": b[anomaly_i], "ratio_to_usual": round(anomaly_ratio, 3)},
     },
     {
         "id": "G5", "categories": ["determine_range"], "behavior": None,
-        "prompt": "A planner needs to know how much Manhattan's daily demand swings during March, from its busiest day "
-                  "to its quietest.",
-        "answer_format": "the difference in daily trips (number)",
+        "prompt": "In Manhattan, how many more trips were there on its busiest day in March than on its quietest day?",
+        "answer_format": "a whole number of trips (within 150 counts as correct)",
         "answer": max(manhattan) - min(manhattan), "tolerance": 150, "type": "number",
     },
 ]
