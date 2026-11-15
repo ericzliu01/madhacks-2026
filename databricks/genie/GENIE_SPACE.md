@@ -42,6 +42,9 @@ Chat-assistant study (tables gold_goal_*, gold_turn_metrics, gold_bot_behavior):
   failed reply. verified = chart interaction within 10 s after a reply. overtrust (goals) = a wrong reply accepted or
   submitted, satisfaction 4-5, final answer wrong. overtrust_rate is over goals that showed a wrong reply (n_wrong_answer_shown).
 - In the chat tables success is outcome = 'correct' in gold_goal_metrics, or success_rate in gold_goal_summary.
+- pasted_goal = the participant pasted the goal text itself into the chat (paste + similarity >= 0.8). Pasting is allowed
+  and equally possible in v1 and v2. When reporting time to first prompt, reformulation or prompt labels, also give the
+  *_excl_pasted value (or filter pasted_goal = 0) and say how many goals or turns were pasted.
 ```
 
 ## 3. Example SQL queries (add as tested examples; replace the schema name)

@@ -118,9 +118,10 @@ def run_trial(s, scen):
 # ------------------------------------------------------------------------------------------- chat sessions (goals)
 # Participant choices per version. These numbers ARE the hypotheses: the pipeline should recover them, nothing more.
 CHAT = {
-    1: {"never_find_chat": 0.15, "find_chat_s": 40, "verify": 0.35, "notice_b1": 0.5, "notice_b2": 0.75,
+    # paste_goal: first prompt is the goal text pasted into the chat (same in both versions: not a planted effect)
+    1: {"paste_goal": 0.3, "never_find_chat": 0.15, "find_chat_s": 40, "verify": 0.35, "notice_b1": 0.5, "notice_b2": 0.75,
         "resend_b3": 0.45, "abandon_b3": 0.25, "find_anomaly": 0.55, "repair_b5": 0.6},
-    2: {"never_find_chat": 0.0, "find_chat_s": 0, "verify": 0.2, "notice_b1": 0.0, "notice_b2": 0.0,
+    2: {"paste_goal": 0.3, "never_find_chat": 0.0, "find_chat_s": 0, "verify": 0.2, "notice_b1": 0.0, "notice_b2": 0.0,
         "resend_b3": 0.05, "abandon_b3": 0.03, "find_anomaly": 0.8, "repair_b5": 0.6},
 }
 ASK = {
@@ -146,12 +147,16 @@ class ChatSession(Session):
         e.update({k: v for k, v in (("goal", self.goal), ("gcats", self.gcats), ("turn", self.turn)) if k not in kw})
         return e
 
-    def ask(self, text, sel=None):
+    def ask(self, text, sel=None, pasted=False):
         """prompt_submit + assistant_response (via the real stub). Returns the reply."""
         r = self.r
-        e = self.ev("prompt_submit", gap=(2000, 9000), how=r.choice(["enter", "click"]), chars=len(text),
-                    words=len(text.split()), hash=hashlib.sha256(("taxi-ops-demo:" + text).encode()).hexdigest()[:16],
-                    text=text, overlap=chatbot.overlap(text, self.prev_text) if self.prev_text else None, sel=bool(sel))
+        if pasted:
+            self.ev("paste", gap=(1500, 4000), ctx="prompt", chars=len(text))
+        e = self.ev("prompt_submit", gap=(400, 1500) if pasted else (2000, 9000), how=r.choice(["enter", "click"]),
+                    chars=len(text), words=len(text.split()),
+                    hash=hashlib.sha256(("taxi-ops-demo:" + text).encode()).hexdigest()[:16],
+                    text=text, overlap=chatbot.overlap(text, self.prev_text) if self.prev_text else None, sel=bool(sel),
+                    pasted=pasted, goal_sim=chatbot.jaccard(text, self.goal_text))
         turn, t_prompt = self.turn, e["t"]
         self.prev_text = text
         self.turn += 1
@@ -198,6 +203,7 @@ class ChatSession(Session):
 def run_goal(s, g, chat_open_at):
     r, P = s.r, CHAT[s.v]
     s.goal, s.gcats, s.turn, s.prev_text, s.prev_intents, s.answers = g["id"], "|".join(g["categories"]), 1, None, [], []
+    s.goal_text = g["prompt"] + " " + g["answer_format"]
     s.ev("goal_start", gap=(1500, 4000), prompt=g["prompt"][:200])
     s.goal_start = s.t
     for _ in range(r.randint(2, 5)):
@@ -215,8 +221,10 @@ def run_goal(s, g, chat_open_at):
         s.ev("chat_open", gap=(0, 0), how="click", turn=None)
 
     gid = g["id"]
+    paste = r.random() < P["paste_goal"]
+    first = lambda: s.ask(s.goal_text, pasted=True) if paste else s.ask(r.choice(ASK[gid]))
     if gid == "G1":  # B1: confident wrong percent in v1
-        rep = s.ask(r.choice(ASK[gid])); s.reply()
+        rep = first(); s.reply()
         verified = s.maybe_verify(P["verify"])
         if rep["correct"] is False and verified and r.random() < P["notice_b1"]:
             return s.finish(g, g["answer"], sat=r.choice([3, 4]))  # checked the chart, noticed, computed it
@@ -226,7 +234,7 @@ def run_goal(s, g, chat_open_at):
         sat = r.choice([4, 5, 5, 4, 3]) if rep["correct"] is False and r.random() < 0.7 else None
         return s.finish(g, rep["value"], turn=rep["turn"], sat=sat)
     if gid == "G2":  # B2: borough ignored the first time in v1
-        rep = s.ask(r.choice(ASK[gid])); s.reply()
+        rep = first(); s.reply()
         s.maybe_verify(P["verify"])
         if rep["correct"] is False:
             if r.random() < P["notice_b2"]:
@@ -238,12 +246,12 @@ def run_goal(s, g, chat_open_at):
         sat = r.choice([4, 5, 3]) if rep["correct"] is False else None
         return s.finish(g, rep["value"], turn=rep["turn"], sat=sat)
     if gid == "G3":  # B3: slow, no indicator in v1
-        q = r.choice(ASK[gid])
-        s.ask(q)
+        q = s.goal_text if paste else r.choice(ASK[gid])
+        s.ask(q, pasted=paste)
         replies = [s.pending]
         if r.random() < P["resend_b3"]:  # impatient re-send while waiting (same words: overlap 1.0)
             s.t += r.randint(2500, 5000)
-            s.ask(q)
+            s.ask(q, pasted=paste)
             replies.append(s.pending)
         if r.random() < P["abandon_b3"]:  # gives up while waiting; the late reply still arrives afterwards
             s.t += r.randint(1000, 3000)
@@ -257,6 +265,9 @@ def run_goal(s, g, chat_open_at):
         s.accept(rep)
         return s.finish(g, rep["value"], turn=rep["turn"])
     if gid == "G4":  # B5: selection ignored in v1
+        if paste:  # the pasted goal has no point selected: the stub asks which point (v2) or answers generically (v1)
+            first(); s.reply()
+            s.prev_intents = []
         for _ in range(r.randint(2, 6)):
             s.ev("chart_hover", chart="line-daily-trips", series=r.choice(chatbot.BOROUGHS), dur=r.randint(200, 1500))
         if s.v == 1 and r.random() < 0.7:
@@ -281,7 +292,7 @@ def run_goal(s, g, chat_open_at):
         s.accept(rep)
         return s.finish(g, rep["value"], turn=rep["turn"])
     # G5 control: no planted behavior, identical in both versions
-    rep = s.ask(r.choice(ASK["G5"])); s.reply()
+    rep = first(); s.reply()
     s.maybe_verify(0.25)
     if r.random() < 0.06:
         return s.finish(g, None, abandoned=True)

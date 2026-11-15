@@ -144,11 +144,12 @@ class GoldReader:
                         f"WHERE n_rage_clicks > 0 OR n_dead_clicks > 0 "
                         f"ORDER BY session_type, n_rage_clicks DESC, n_dead_clicks DESC LIMIT 40",
             "goals": f"SELECT session_type, app_version, goal_id, goal_cats, n_goals, success_rate, abandon_rate, "
-                     f"avg_turns, overtrust_rate, n_wrong_answer_shown, dropoff_rate, avg_time_to_first_prompt_ms "
+                     f"avg_turns, overtrust_rate, n_wrong_answer_shown, dropoff_rate, avg_time_to_first_prompt_ms, "
+                     f"n_goals_pasted_goal, success_rate_excl_pasted "
                      f"FROM {s}.gold_goal_summary ORDER BY session_type, goal_id, app_version",
             "behaviors": f"SELECT session_type, behavior, app_version, n_turns, n_goals, n_sessions, wrong_answer_rate, "
                          f"reformulation_rate, repair_rate, verification_rate, avg_latency_ms, goal_success_rate, "
-                         f"goal_abandon_rate, overtrust_rate, avg_ms_to_chat_open, never_opened_rate "
+                         f"goal_abandon_rate, overtrust_rate, avg_ms_to_chat_open, never_opened_rate, pasted_goal_share "
                          f"FROM {s}.gold_bot_behavior ORDER BY session_type, behavior, app_version",
         }
 

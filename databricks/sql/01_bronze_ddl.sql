@@ -18,6 +18,6 @@ CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.bronze_events (
   w BIGINT, h BIGINT, dpr DOUBLE,
   goal STRING, gcats STRING, turn BIGINT,
   latency_ms BIGINT, behavior STRING, answer_id STRING, correct BOOLEAN, intent STRING, feedback STRING,
-  mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN,
+  mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN, goal_sim DOUBLE, pasted BOOLEAN,
   _source_file STRING, _ingested_at TIMESTAMP
 );

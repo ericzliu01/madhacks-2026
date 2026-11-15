@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS workspace.ux_telemetry.bronze_events (
   w BIGINT, h BIGINT, dpr DOUBLE,
   goal STRING, gcats STRING, turn BIGINT,
   latency_ms BIGINT, behavior STRING, answer_id STRING, correct BOOLEAN, intent STRING, feedback STRING,
-  mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN,
+  mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN, goal_sim DOUBLE, pasted BOOLEAN,
   _source_file STRING, _ingested_at TIMESTAMP
 );
 
@@ -41,12 +41,12 @@ CREATE TABLE IF NOT EXISTS workspace.ux_telemetry.bronze_events (
 -- CREATE OR REPLACE (not INSERT) so new columns appear on an existing table; the Volume keeps every raw file,
 -- so the rebuild loses nothing. _ingested_at is the rebuild time.
 CREATE OR REPLACE TABLE workspace.ux_telemetry.bronze_events AS
-SELECT t, recv_t, sid, st, app, task, tcat, pid, page, path, type, tab, frame, x, y, v, btn, tag, role, uxid, testid, label, region, dom, action, interactive, ptr, n, how, chars, words, hash, text, ctx, combo, del, dur, pos, ratio, state, status, satisfaction, answer, name, chart, series, prompt, w, h, dpr, goal, gcats, turn, latency_ms, behavior, answer_id, correct, intent, feedback, mark_x, mark_y, overlap, sel,
+SELECT t, recv_t, sid, st, app, task, tcat, pid, page, path, type, tab, frame, x, y, v, btn, tag, role, uxid, testid, label, region, dom, action, interactive, ptr, n, how, chars, words, hash, text, ctx, combo, del, dur, pos, ratio, state, status, satisfaction, answer, name, chart, series, prompt, w, h, dpr, goal, gcats, turn, latency_ms, behavior, answer_id, correct, intent, feedback, mark_x, mark_y, overlap, sel, goal_sim, pasted,
        _metadata.file_path AS _source_file, current_timestamp() AS _ingested_at
 FROM read_files(
   '/Volumes/workspace/ux_telemetry/raw_events/raw/',
   format => 'json',
-  schema => 't BIGINT, recv_t BIGINT, sid STRING, st STRING, app STRING, task STRING, tcat STRING, pid STRING, page STRING, path STRING, type STRING, tab BIGINT, frame BIGINT, x DOUBLE, y DOUBLE, v DOUBLE, btn BIGINT, tag STRING, role STRING, uxid STRING, testid STRING, label STRING, region STRING, dom STRING, action STRING, interactive BOOLEAN, ptr BOOLEAN, n BIGINT, how STRING, chars BIGINT, words BIGINT, hash STRING, text STRING, ctx STRING, combo STRING, del BIGINT, dur DOUBLE, pos DOUBLE, ratio DOUBLE, state STRING, status STRING, satisfaction BIGINT, answer STRING, name STRING, chart STRING, series STRING, prompt STRING, w BIGINT, h BIGINT, dpr DOUBLE, goal STRING, gcats STRING, turn BIGINT, latency_ms BIGINT, behavior STRING, answer_id STRING, correct BOOLEAN, intent STRING, feedback STRING, mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN'
+  schema => 't BIGINT, recv_t BIGINT, sid STRING, st STRING, app STRING, task STRING, tcat STRING, pid STRING, page STRING, path STRING, type STRING, tab BIGINT, frame BIGINT, x DOUBLE, y DOUBLE, v DOUBLE, btn BIGINT, tag STRING, role STRING, uxid STRING, testid STRING, label STRING, region STRING, dom STRING, action STRING, interactive BOOLEAN, ptr BOOLEAN, n BIGINT, how STRING, chars BIGINT, words BIGINT, hash STRING, text STRING, ctx STRING, combo STRING, del BIGINT, dur DOUBLE, pos DOUBLE, ratio DOUBLE, state STRING, status STRING, satisfaction BIGINT, answer STRING, name STRING, chart STRING, series STRING, prompt STRING, w BIGINT, h BIGINT, dpr DOUBLE, goal STRING, gcats STRING, turn BIGINT, latency_ms BIGINT, behavior STRING, answer_id STRING, correct BOOLEAN, intent STRING, feedback STRING, mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN, goal_sim DOUBLE, pasted BOOLEAN'
 );
 
 -- ===================================================================== 02_silver.sql
@@ -60,14 +60,14 @@ SELECT session_id, session_type, app_id, app_version, participant_id, task_id, t
        ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
        status, satisfaction, answer, chart, series, prompt_text, how, chars, words, prompt_hash, ctx, combo, name,
        goal_id, goal_cats, turn_id, latency_ms, behavior, answer_id, correct, intent, feedback, mark_x, mark_y, overlap,
-       had_selection
+       had_selection, goal_sim, pasted
 FROM (
   SELECT sid AS session_id, st AS session_type, app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
          task AS task_id, tcat AS task_category, page, path, type AS event_type,
          CAST(t AS BIGINT) AS ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
          status, satisfaction, answer, chart, series, text AS prompt_text, how, chars, words, hash AS prompt_hash, ctx, combo, name,
          goal AS goal_id, gcats AS goal_cats, turn AS turn_id, latency_ms, behavior, answer_id, correct, intent, feedback,
-         mark_x, mark_y, overlap, sel AS had_selection,
+         mark_x, mark_y, overlap, sel AS had_selection, goal_sim, pasted,
          ROW_NUMBER() OVER (
            PARTITION BY sid, t, type, COALESCE(uxid, ''), COALESCE(x, -1), COALESCE(y, -1), COALESCE(goal, ''), COALESCE(turn, -1)
            ORDER BY recv_t
@@ -216,10 +216,12 @@ LEFT JOIN (
 -- overlap = token overlap of this prompt with the previous prompt in the same goal, computed in the browser
 -- (content tokens = lowercase alphanumerics minus stopwords, overlap coefficient |A and B| / min(|A|, |B|)), so the
 -- reformulation metric works without storing prompt text. prompt_text is only present with the participant's consent.
+-- goal_sim = Jaccard similarity of the prompt with the goal text (also computed in the browser) and pasted = something
+-- was pasted into the chat box before this prompt: together they flag a pasted goal (see gold_turn_metrics).
 CREATE OR REPLACE TABLE workspace.ux_telemetry.silver_turns AS
 SELECT p.session_id, p.session_type, p.app_id, p.app_version, p.participant_id, p.goal_id, p.turn_id,
        p.prompt_ms, r.response_ms, r.latency_ms,
-       p.prompt_hash, p.prompt_text, p.chars, p.words, p.overlap, p.had_selection,
+       p.prompt_hash, p.prompt_text, p.chars, p.words, p.overlap, p.had_selection, p.goal_sim, p.pasted,
        r.intent, r.behavior, r.answer_id, r.correct, r.bot_answer, r.mark_x,
        CASE WHEN COALESCE(f.n_accept_copy, 0) > 0 THEN 1 ELSE 0 END AS accepted,
        COALESCE(f.n_thumbs_up, 0) AS n_thumbs_up,
@@ -228,7 +230,9 @@ FROM (
   SELECT session_id, session_type, app_id, app_version, participant_id, goal_id, turn_id,
          MIN(ts_ms) AS prompt_ms, MAX(prompt_hash) AS prompt_hash, MAX(prompt_text) AS prompt_text,
          MAX(chars) AS chars, MAX(words) AS words, MAX(overlap) AS overlap,
-         MAX(CASE WHEN had_selection = TRUE THEN 1 ELSE 0 END) AS had_selection
+         MAX(CASE WHEN had_selection = TRUE THEN 1 ELSE 0 END) AS had_selection,
+         MAX(goal_sim) AS goal_sim,
+         MAX(CASE WHEN pasted = TRUE THEN 1 ELSE 0 END) AS pasted
   FROM workspace.ux_telemetry.silver_events
   WHERE event_type = 'prompt_submit' AND goal_id IS NOT NULL AND turn_id IS NOT NULL
   GROUP BY session_id, session_type, app_id, app_version, participant_id, goal_id, turn_id
@@ -269,12 +273,16 @@ LEFT JOIN (
 --   overtrust       relied_on_wrong AND satisfaction 4-5 AND the final answer is not correct (a participant who
 --                   accepted a wrong reply but then submitted the right answer is not counted)
 --   dropoff         the goal ended abandoned or with no outcome after k >= 1 failed turns (k is reported)
+--   pasted_goal     the participant pasted into the chat box and the prompt's Jaccard similarity with the goal text is
+--                   >= 0.8: the goal was handed to the assistant, not phrased by the participant. Metrics named
+--                   *_excl_pasted repeat the main metric without these turns (or without goals whose first prompt was one).
 
 -- One row per turn with the flags above.
 CREATE OR REPLACE TABLE workspace.ux_telemetry.gold_turn_metrics AS
 SELECT t.session_id, t.session_type, t.app_id, t.app_version, t.participant_id, t.goal_id, t.turn_id,
        t.prompt_ms, t.response_ms, t.latency_ms, t.intent, t.behavior, t.answer_id, t.correct, t.accepted,
-       t.had_selection, t.overlap, t.chars, t.words,
+       t.had_selection, t.overlap, t.chars, t.words, t.goal_sim, t.pasted,
+       CASE WHEN t.pasted = 1 AND t.goal_sim >= 0.8 THEN 1 ELSE 0 END AS pasted_goal,
        CASE WHEN t.response_ms IS NOT NULL AND (t.correct = 0 OR t.correct IS NULL) THEN 1 ELSE 0 END AS failed,
        CASE WHEN t.next_prompt_ms IS NOT NULL AND t.next_prompt_ms - t.prompt_ms <= 60000
                  AND t.next_overlap >= 0.6 THEN 1 ELSE 0 END AS reformulated,
@@ -307,6 +315,8 @@ SELECT g.session_id, g.session_type, g.app_id, g.app_version, g.participant_id, 
        COALESCE(a.n_failed_turns, 0) AS n_failed_turns,
        COALESCE(a.n_reformulations, 0) AS n_reformulations,
        COALESCE(a.n_verified, 0) AS n_verified_turns,
+       COALESCE(a.n_pasted_goal, 0) AS n_pasted_goal_turns,
+       COALESCE(a.first_pasted_goal, 0) AS first_prompt_pasted_goal,
        a.first_prompt_ms - g.start_ms AS time_to_first_prompt_ms,
        CASE WHEN COALESCE(a.n_wrong, 0) > 0 THEN 1 ELSE 0 END AS wrong_answer_shown,
        COALESCE(w.relied_on_wrong, 0) AS relied_on_wrong,
@@ -315,7 +325,8 @@ SELECT g.session_id, g.session_type, g.app_id, g.app_version, g.participant_id, 
 FROM workspace.ux_telemetry.silver_goals g
 LEFT JOIN (
   SELECT session_id, goal_id, COUNT(*) AS n_turns, SUM(failed) AS n_failed_turns, SUM(reformulated) AS n_reformulations,
-         SUM(verified) AS n_verified, MIN(prompt_ms) AS first_prompt_ms,
+         SUM(verified) AS n_verified, MIN(prompt_ms) AS first_prompt_ms, SUM(pasted_goal) AS n_pasted_goal,
+         MAX(CASE WHEN turn_id = 1 THEN pasted_goal ELSE 0 END) AS first_pasted_goal,
          SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) AS n_wrong
   FROM workspace.ux_telemetry.gold_turn_metrics
   GROUP BY session_id, goal_id
@@ -343,7 +354,10 @@ SELECT session_type, app_version, goal_id, MAX(goal_cats) AS goal_cats,
        SUM(wrong_answer_shown) AS n_wrong_answer_shown,
        SUM(overtrust) * 1.0 / NULLIF(SUM(wrong_answer_shown), 0) AS overtrust_rate,
        AVG(dropoff_after_failure * 1.0) AS dropoff_rate,
-       AVG(CASE WHEN dropoff_after_failure = 1 THEN n_failed_turns * 1.0 END) AS avg_failed_turns_at_dropoff
+       AVG(CASE WHEN dropoff_after_failure = 1 THEN n_failed_turns * 1.0 END) AS avg_failed_turns_at_dropoff,
+       SUM(first_prompt_pasted_goal) AS n_goals_pasted_goal,
+       AVG(CASE WHEN first_prompt_pasted_goal = 0 THEN (CASE WHEN outcome = 'correct' THEN 1.0 ELSE 0.0 END) END) AS success_rate_excl_pasted,
+       AVG(CASE WHEN first_prompt_pasted_goal = 0 THEN time_to_first_prompt_ms * 1.0 END) AS avg_time_to_first_prompt_ms_excl_pasted
 FROM workspace.ux_telemetry.gold_goal_metrics
 GROUP BY session_type, app_version, goal_id;
 
@@ -355,14 +369,18 @@ CREATE OR REPLACE TABLE workspace.ux_telemetry.gold_bot_behavior AS
 SELECT t.session_type, t.behavior, t.app_version, t.n_turns, g.n_goals, NULL AS n_sessions,
        t.wrong_answer_rate, t.reformulation_rate, t.repair_rate, t.verification_rate, t.avg_latency_ms,
        g.goal_success_rate, g.goal_abandon_rate, g.overtrust_rate,
-       NULL AS avg_ms_to_chat_open, NULL AS never_opened_rate
+       NULL AS avg_ms_to_chat_open, NULL AS never_opened_rate,
+       t.pasted_goal_share, t.wrong_answer_rate_excl_pasted, t.reformulation_rate_excl_pasted, g.goal_abandon_rate_excl_pasted
 FROM (
   SELECT session_type, behavior, app_version, COUNT(*) AS n_turns,
          AVG(CASE WHEN correct = 0 THEN 1.0 ELSE 0.0 END) AS wrong_answer_rate,
          AVG(reformulated * 1.0) AS reformulation_rate,
          AVG(repair_attempt * 1.0) AS repair_rate,
          AVG(verified * 1.0) AS verification_rate,
-         AVG(latency_ms * 1.0) AS avg_latency_ms
+         AVG(latency_ms * 1.0) AS avg_latency_ms,
+         AVG(pasted_goal * 1.0) AS pasted_goal_share,
+         AVG(CASE WHEN pasted_goal = 0 THEN (CASE WHEN correct = 0 THEN 1.0 ELSE 0.0 END) END) AS wrong_answer_rate_excl_pasted,
+         AVG(CASE WHEN pasted_goal = 0 THEN reformulated * 1.0 END) AS reformulation_rate_excl_pasted
   FROM workspace.ux_telemetry.gold_turn_metrics
   WHERE behavior IS NOT NULL
   GROUP BY session_type, behavior, app_version
@@ -371,7 +389,8 @@ JOIN (
   SELECT b.session_type, b.behavior, b.app_version, COUNT(*) AS n_goals,
          AVG(CASE WHEN m.outcome = 'correct' THEN 1.0 ELSE 0.0 END) AS goal_success_rate,
          AVG(CASE WHEN m.outcome IN ('abandoned', 'no_outcome') THEN 1.0 ELSE 0.0 END) AS goal_abandon_rate,
-         SUM(m.overtrust) * 1.0 / NULLIF(SUM(m.wrong_answer_shown), 0) AS overtrust_rate
+         SUM(m.overtrust) * 1.0 / NULLIF(SUM(m.wrong_answer_shown), 0) AS overtrust_rate,
+         AVG(CASE WHEN m.first_prompt_pasted_goal = 0 THEN (CASE WHEN m.outcome IN ('abandoned', 'no_outcome') THEN 1.0 ELSE 0.0 END) END) AS goal_abandon_rate_excl_pasted
   FROM (SELECT DISTINCT session_type, behavior, app_version, session_id, goal_id
         FROM workspace.ux_telemetry.gold_turn_metrics WHERE behavior IS NOT NULL) b
   JOIN workspace.ux_telemetry.gold_goal_metrics m ON m.session_id = b.session_id AND m.goal_id = b.goal_id
@@ -383,7 +402,8 @@ SELECT s.session_type, 'B4' AS behavior, s.app_version, NULL AS n_turns, NULL AS
        AVG(CASE WHEN s.first_open_ms IS NULL THEN NULL
                 WHEN s.first_open_ms < s.first_goal_ms THEN 0.0
                 ELSE (s.first_open_ms - s.first_goal_ms) * 1.0 END) AS avg_ms_to_chat_open,
-       AVG(CASE WHEN s.first_open_ms IS NULL THEN 1.0 ELSE 0.0 END) AS never_opened_rate
+       AVG(CASE WHEN s.first_open_ms IS NULL THEN 1.0 ELSE 0.0 END) AS never_opened_rate,
+       NULL, NULL, NULL, NULL
 FROM (
   SELECT session_id, session_type, app_version,
          MIN(CASE WHEN event_type = 'goal_start' THEN ts_ms END) AS first_goal_ms,
@@ -450,3 +470,5 @@ COMMENT ON TABLE workspace.ux_telemetry.gold_goal_summary IS
   'Per session_type, design version and goal: success, abandonment, turns, time to first prompt, over-trust (share of goals that showed a wrong answer) and drop-off (avg_failed_turns_at_dropoff = k). Small samples: descriptive only.';
 COMMENT ON TABLE workspace.ux_telemetry.gold_bot_behavior IS
   'Per planted assistant behavior (B1-B5) and design version (v1 flawed, v2 fixed): wrong-answer, reformulation, repair and verification rates, latency, and outcomes of the goals where the behavior fired. B4 (chat entry point hidden in v1) reports avg_ms_to_chat_open and never_opened_rate per session instead.';
+COMMENT ON COLUMN workspace.ux_telemetry.gold_turn_metrics.pasted_goal IS
+  '1 if the participant pasted into the chat box and the prompt has Jaccard similarity >= 0.8 with the goal text (the goal was handed to the assistant rather than phrased by the participant). Columns ending in _excl_pasted in the other chat tables repeat a metric without these.';

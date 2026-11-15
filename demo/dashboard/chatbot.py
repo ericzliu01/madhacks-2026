@@ -20,7 +20,7 @@ Supported intents (keyword rules, checked in this order; first match wins):
   explain_point  why / what happened / explain / cause / reason, or unusual / anomaly / odd / weird / wrong / outlier /
                  stand out   (a borough + date named in the prompt, else the chart selection, else asks which point)
   pct_compare    two boroughs + percent / % / more than / exceed / compare / vs / difference / higher / bigger
-  range          range / vary / variation / spread / minus / "highest ... lowest"
+  range          range / vary / variation / spread / minus / swing / "highest ... lowest" / "busiest ... quietest"
   extremum       lowest / fewest / least / min / quietest / highest / most / max / busiest / peak  (+ borough, metric)
   value_on_date  borough + a date (2026-03-24, March 24, 24 March, 3/24)
   avg_fare       fare / price / cost (+ optional borough)
@@ -42,7 +42,8 @@ was me my i you your it its this that these those there their please can could w
 get about with by from at as than then so any all""".split())
 WHY = re.compile(r"\b(why|what happened|explain|cause|caused|reason)\b")
 PCT = re.compile(r"(percent|%|more than|exceed|compare|\bvs\b|versus|difference|higher|bigger|larger|more trips)")
-RANGE = re.compile(r"\b(range|vary|varied|variation|spread|minus)\b|highest.*lowest|lowest.*highest|max.*min")
+RANGE = re.compile(r"\b(range|vary|varied|variation|spread|minus|swing|swings)\b|highest.*lowest|lowest.*highest|"
+                   r"busiest.*quietest|quietest.*busiest|max.*min")
 EXT_MIN = re.compile(r"\b(lowest|fewest|least|minimum|min|quietest|slowest|worst)\b")
 EXT_MAX = re.compile(r"\b(highest|most|maximum|max|busiest|peak|top|best)\b")
 FARE = re.compile(r"(fare|price|cost|\$)")
@@ -65,6 +66,15 @@ def overlap(a, b):
     if not ta or not tb:
         return 0.0
     return round(len(ta & tb) / min(len(ta), len(tb)), 3)
+
+
+def jaccard(a, b):
+    """|A and B| / |A or B| over content tokens: how close a prompt is to a whole text (e.g. the goal, to spot a pasted
+    goal). Unlike overlap(), a short prompt does not score high against a long text. Same rule as jaccard() in the JS."""
+    ta, tb = tokens(a), tokens(b)
+    if not ta or not tb:
+        return 0.0
+    return round(len(ta & tb) / len(ta | tb), 3)
 
 
 def fmt_int(n):

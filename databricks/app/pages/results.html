@@ -132,7 +132,7 @@
         <td class="num">${arrow(a.reformulation_rate, c.reformulation_rate, pct)} / ${arrow(a.repair_rate, c.repair_rate, pct)}</td>
         <td class="num">${arrow(a.avg_latency_ms, c.avg_latency_ms, ms)}</td>
         <td class="num">${arrow(a.goal_abandon_rate, c.goal_abandon_rate, pct)} / ${arrow(a.overtrust_rate, c.overtrust_rate, pct)}</td>
-        <td class="num">${a.n_turns ?? 0} / ${c.n_turns ?? 0} turns</td></tr>`;
+        <td class="num">${a.n_turns ?? 0} / ${c.n_turns ?? 0} turns<div class="muted" style="font-size:11px">pasted goal ${arrow(a.pasted_goal_share, c.pasted_goal_share, pct)}</div></td></tr>`;
     }).join('');
     return `<section class="card"><h2>${tagFor(st)} Chat assistant: planted behaviors, v1 → v2</h2>
       <p class="sub">Each behavior is flawed in v1 and fixed in v2. "Wrong" is the stub's ground truth. Reformulated = next prompt within 60 s
@@ -152,13 +152,15 @@
         <td class="num">${arrow(a.abandon_rate, b.abandon_rate, pct)}</td>
         <td class="num">${arrow(a.avg_turns, b.avg_turns, (x) => (x == null ? '–' : x.toFixed(1)))}</td>
         <td class="num">${arrow(a.avg_time_to_first_prompt_ms, b.avg_time_to_first_prompt_ms, ms)}</td>
+        <td class="num">${a.n_goals_pasted_goal ?? 0} / ${b.n_goals_pasted_goal ?? 0}<div class="muted" style="font-size:11px">success w/o: ${arrow(a.success_rate_excl_pasted, b.success_rate_excl_pasted, pct)}</div></td>
         <td class="num">${a.n_goals ?? 0} / ${b.n_goals ?? 0}</td></tr>`;
     }).join('');
     return `<section class="card"><h2>${tagFor(st)} Chat goals, v1 vs v2</h2>
-      <p class="sub">Open-ended goals worked on with the assistant. Success = final answer within tolerance of the computed ground truth.</p>
+      <p class="sub">Open-ended goals worked on with the assistant. Success = final answer within tolerance of the computed ground truth.
+      "Pasted goal" = the first prompt was the goal text pasted into the chat (paste + similarity ≥ 0.8); "success w/o" repeats success without those goals.</p>
       <div class="legend"><span><i style="background:var(--v1)"></i>v1 (planted behaviors)</span><span><i style="background:var(--v2)"></i>v2 (fixed)</span></div>
       <div class="scroll"><table><thead><tr><th>Goal</th><th>Success rate</th><th class="num">Change</th><th class="num">Abandoned</th>
-      <th class="num">Turns</th><th class="num">To first prompt</th><th class="num">n v1 / v2</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+      <th class="num">Turns</th><th class="num">To first prompt</th><th class="num">Pasted goal v1 / v2</th><th class="num">n v1 / v2</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
   }
 
   function proposalSection(p) {

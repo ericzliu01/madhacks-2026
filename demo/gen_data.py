@@ -103,7 +103,9 @@ scenarios = [
     },
 ]
 
-# Goals for the chat study: a goal states what the analyst needs, not which chart to read. `behavior` names the planted
+# Goals for the chat study: a goal is a work situation, not a ready-made question, so a participant has to decide what to
+# ask (pasting it into the assistant still works and is detected: see gold_turn_metrics.pasted_goal). `answer_format`
+# is shown on its own line. `behavior` names the planted
 # assistant behavior the goal is designed to expose (see demo/dashboard/chatbot.py); G5 is a control with none.
 # B4 (hard-to-find chat entry point) affects every goal, so it is not tied to one.
 q_min_date = dates[min(range(DAYS), key=lambda i: q[i])]
@@ -111,31 +113,37 @@ assert q_min_date == dates[q_min_i]
 goals = [
     {
         "id": "G1", "categories": ["compute_derived_value", "retrieve_value"], "behavior": "B1",
-        "prompt": "Your manager thinks Brooklyn had far more trips than Queens in March. By what percentage did "
-                  "Brooklyn's total trips exceed Queens' total? (number, in %)",
+        "prompt": "Your manager is about to tell the board that Brooklyn was much busier than Queens in March. Before "
+                  "she does, find out how big Brooklyn's lead in total trips really was.",
+        "answer_format": "Brooklyn's lead as a percentage of Queens' total (number, in %)",
         "answer": pct_gap, "tolerance": 2.0, "type": "number",
     },
     {
         "id": "G2", "categories": ["filter", "compute_derived_value"], "behavior": "B2",
-        "prompt": "Finance needs the average fare for Bronx trips in March. What was it? (number, in $)",
+        "prompt": "Finance is reconciling Bronx receipts for March and needs the typical fare a rider paid there, "
+                  "weighted by trips.",
+        "answer_format": "the fare (number, in $)",
         "answer": avg_fare["Bronx"], "tolerance": 0.05, "type": "number",
     },
     {
         "id": "G3", "categories": ["find_extremum", "filter"], "behavior": "B3",
-        "prompt": "Operations wants to plan around the quietest day. On which date did Queens have its fewest trips? "
-                  "(YYYY-MM-DD)",
+        "prompt": "Operations wants to schedule driver training on the quietest Queens day of March.",
+        "answer_format": "that date (YYYY-MM-DD)",
         "answer": q_min_date, "tolerance": 0, "type": "date",
     },
     {
         "id": "G4", "categories": ["find_anomalies", "filter", "retrieve_value"], "behavior": "B5",
-        "prompt": "The Bronx operations lead says one day in March looked wrong in their numbers. Find that day and "
-                  "check why it stands out. Which date was it? (YYYY-MM-DD)",
+        "prompt": "The Bronx operations lead says one day in March looked off in their numbers. Find the day and work "
+                  "out why it stands out.",
+        "answer_format": "the date (YYYY-MM-DD)",
         "answer": dates[anomaly_i], "tolerance": 0, "type": "date",
         "detail": {"borough": "Bronx", "trips": b[anomaly_i], "ratio_to_usual": round(anomaly_ratio, 3)},
     },
     {
         "id": "G5", "categories": ["determine_range"], "behavior": None,
-        "prompt": "How much did Manhattan's daily trips vary over March: highest day minus lowest day? (number)",
+        "prompt": "A planner needs to know how much Manhattan's daily demand swings during March, from its busiest day "
+                  "to its quietest.",
+        "answer_format": "the difference in daily trips (number)",
         "answer": max(manhattan) - min(manhattan), "tolerance": 150, "type": "number",
     },
 ]

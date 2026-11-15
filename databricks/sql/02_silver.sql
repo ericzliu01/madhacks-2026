@@ -8,14 +8,14 @@ SELECT session_id, session_type, app_id, app_version, participant_id, task_id, t
        ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
        status, satisfaction, answer, chart, series, prompt_text, how, chars, words, prompt_hash, ctx, combo, name,
        goal_id, goal_cats, turn_id, latency_ms, behavior, answer_id, correct, intent, feedback, mark_x, mark_y, overlap,
-       had_selection
+       had_selection, goal_sim, pasted
 FROM (
   SELECT sid AS session_id, st AS session_type, app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
          task AS task_id, tcat AS task_category, page, path, type AS event_type,
          CAST(t AS BIGINT) AS ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
          status, satisfaction, answer, chart, series, text AS prompt_text, how, chars, words, hash AS prompt_hash, ctx, combo, name,
          goal AS goal_id, gcats AS goal_cats, turn AS turn_id, latency_ms, behavior, answer_id, correct, intent, feedback,
-         mark_x, mark_y, overlap, sel AS had_selection,
+         mark_x, mark_y, overlap, sel AS had_selection, goal_sim, pasted,
          ROW_NUMBER() OVER (
            PARTITION BY sid, t, type, COALESCE(uxid, ''), COALESCE(x, -1), COALESCE(y, -1), COALESCE(goal, ''), COALESCE(turn, -1)
            ORDER BY recv_t

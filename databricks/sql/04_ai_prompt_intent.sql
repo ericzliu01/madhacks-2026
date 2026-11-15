@@ -12,6 +12,7 @@
 CREATE OR REPLACE TABLE ${catalog}.${schema}.gold_prompt_labels AS
 SELECT t.session_id, t.session_type, t.app_version, t.goal_id, t.turn_id, t.prompt_hash, t.prompt_text,
        g.goal_cats, t.intent AS stub_intent, t.behavior, t.correct,
+       CASE WHEN t.pasted = 1 AND t.goal_sim >= 0.8 THEN 1 ELSE 0 END AS pasted_goal,
        ai_classify(t.prompt_text, ARRAY(
          'retrieve_value', 'filter', 'compute_derived_value', 'find_extremum', 'sort',
          'determine_range', 'characterize_distribution', 'find_anomalies', 'cluster', 'correlate', 'none')) AS llm_task,
@@ -30,11 +31,14 @@ LEFT JOIN ${catalog}.${schema}.silver_goals g ON g.session_id = t.session_id AND
 WHERE t.prompt_text IS NOT NULL;
 
 -- Agreement summary: LLM vs rule label, and whether each label is one of the goal's designed categories.
+-- Pasted goals are left out (they label our goal wording, not the participant's question) and counted.
 CREATE OR REPLACE TABLE ${catalog}.${schema}.gold_prompt_label_agreement AS
-SELECT session_type, goal_id, MAX(goal_cats) AS goal_cats, COUNT(*) AS n_prompts,
-       AVG(CASE WHEN llm_task = rule_task THEN 1.0 ELSE 0.0 END) AS llm_rule_agreement,
-       AVG(CASE WHEN array_contains(split(goal_cats, '[|]'), llm_task) THEN 1.0 ELSE 0.0 END) AS llm_in_goal_cats,
-       AVG(CASE WHEN array_contains(split(goal_cats, '[|]'), rule_task) THEN 1.0 ELSE 0.0 END) AS rule_in_goal_cats
+SELECT session_type, goal_id, MAX(goal_cats) AS goal_cats,
+       SUM(1 - pasted_goal) AS n_prompts,
+       SUM(pasted_goal) AS n_pasted_goal_excluded,
+       AVG(CASE WHEN pasted_goal = 0 THEN (CASE WHEN llm_task = rule_task THEN 1.0 ELSE 0.0 END) END) AS llm_rule_agreement,
+       AVG(CASE WHEN pasted_goal = 0 THEN (CASE WHEN array_contains(split(goal_cats, '[|]'), llm_task) THEN 1.0 ELSE 0.0 END) END) AS llm_in_goal_cats,
+       AVG(CASE WHEN pasted_goal = 0 THEN (CASE WHEN array_contains(split(goal_cats, '[|]'), rule_task) THEN 1.0 ELSE 0.0 END) END) AS rule_in_goal_cats
 FROM ${catalog}.${schema}.gold_prompt_labels
 GROUP BY session_type, goal_id;
 

@@ -398,6 +398,15 @@
         }
       }, true);
 
+      // paste: where and how long, never the content (the text is read only to measure its length)
+      on(window, 'paste', function (e) {
+        if (e.target instanceof Element && e.target.matches('input[type=password]')) return;
+        noteActivity();
+        let n = null;
+        try { n = ((e.clipboardData && e.clipboardData.getData('text')) || '').length; } catch (_) { n = null; }
+        emit('paste', { ctx: ctxOf(e.target), chars: n });
+      }, true);
+
       // visibility, focus, viewport
       on(document, 'visibilitychange', function () {
         emit('visibility', { state: document.visibilityState });

@@ -35,10 +35,12 @@ LEFT JOIN (
 -- overlap = token overlap of this prompt with the previous prompt in the same goal, computed in the browser
 -- (content tokens = lowercase alphanumerics minus stopwords, overlap coefficient |A and B| / min(|A|, |B|)), so the
 -- reformulation metric works without storing prompt text. prompt_text is only present with the participant's consent.
+-- goal_sim = Jaccard similarity of the prompt with the goal text (also computed in the browser) and pasted = something
+-- was pasted into the chat box before this prompt: together they flag a pasted goal (see gold_turn_metrics).
 CREATE OR REPLACE TABLE ${catalog}.${schema}.silver_turns AS
 SELECT p.session_id, p.session_type, p.app_id, p.app_version, p.participant_id, p.goal_id, p.turn_id,
        p.prompt_ms, r.response_ms, r.latency_ms,
-       p.prompt_hash, p.prompt_text, p.chars, p.words, p.overlap, p.had_selection,
+       p.prompt_hash, p.prompt_text, p.chars, p.words, p.overlap, p.had_selection, p.goal_sim, p.pasted,
        r.intent, r.behavior, r.answer_id, r.correct, r.bot_answer, r.mark_x,
        CASE WHEN COALESCE(f.n_accept_copy, 0) > 0 THEN 1 ELSE 0 END AS accepted,
        COALESCE(f.n_thumbs_up, 0) AS n_thumbs_up,
@@ -47,7 +49,9 @@ FROM (
   SELECT session_id, session_type, app_id, app_version, participant_id, goal_id, turn_id,
          MIN(ts_ms) AS prompt_ms, MAX(prompt_hash) AS prompt_hash, MAX(prompt_text) AS prompt_text,
          MAX(chars) AS chars, MAX(words) AS words, MAX(overlap) AS overlap,
-         MAX(CASE WHEN had_selection = TRUE THEN 1 ELSE 0 END) AS had_selection
+         MAX(CASE WHEN had_selection = TRUE THEN 1 ELSE 0 END) AS had_selection,
+         MAX(goal_sim) AS goal_sim,
+         MAX(CASE WHEN pasted = TRUE THEN 1 ELSE 0 END) AS pasted
   FROM ${catalog}.${schema}.silver_events
   WHERE event_type = 'prompt_submit' AND goal_id IS NOT NULL AND turn_id IS NOT NULL
   GROUP BY session_id, session_type, app_id, app_version, participant_id, goal_id, turn_id

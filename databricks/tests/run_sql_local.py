@@ -99,6 +99,8 @@ checks = [
 beh = {(r["behavior"], r["app_version"]): r for r in q(f"SELECT * FROM gold_bot_behavior WHERE {SIM}")}
 gsum = {(r["goal_id"], r["app_version"]): r for r in q(f"SELECT * FROM gold_goal_summary WHERE {SIM}")}
 B = lambda b, v, k: beh[(b, v)][k] or 0
+n_sim_pasted = sum(1 for f in sessions.glob("simchat-*.jsonl") for line in f.read_text().splitlines()
+                   if '"prompt_submit"' in line and json.loads(line).get("pasted"))
 gen_ok = subprocess.run([sys.executable, "-I", str(HERE.parent / "tools/gen_bronze_load.py"), "--check"]).returncode == 0
 checks += [
     ("01b read_files schema is in sync with the 01 DDL", gen_ok),
@@ -107,13 +109,23 @@ checks += [
     ("chat rows are all simulated", q("SELECT COUNT(*) AS c FROM gold_goal_metrics WHERE session_type <> 'simulated'")[0]["c"] == 0),
     ("B1: v1 percent answers wrong, v2 right", B("B1", "v1", "wrong_answer_rate") == 1.0 and B("B1", "v2", "wrong_answer_rate") == 0),
     ("B1: over-trust on G1 higher in v1 than v2", (gsum[("G1", "v1")]["overtrust_rate"] or 0) > 0.3 > (gsum[("G1", "v2")]["overtrust_rate"] or 0)),
-    ("B2: reformulation rate v1 > v2 + 0.3", B("B2", "v1", "reformulation_rate") > B("B2", "v2", "reformulation_rate") + 0.3),
+    # a rephrase after a PASTED goal shares few tokens with the long goal text, so the plain rate undercounts: use the
+    # rate without pasted-goal turns (the plain rate is printed below for comparison)
+    # (was "v1 > v2 + 0.3" before goals could be pasted; that margin was arbitrary. Expected: present in v1, absent in v2.)
+    ("B2: reformulation (excl. pasted goals) >= 0.15 in v1, 0 in v2",
+     B("B2", "v1", "reformulation_rate_excl_pasted") >= 0.15 and B("B2", "v2", "reformulation_rate_excl_pasted") == 0),
     ("B3: latency v1 > 3x v2", B("B3", "v1", "avg_latency_ms") > 3 * B("B3", "v2", "avg_latency_ms")),
     ("B3: goals abandoned more in v1", B("B3", "v1", "goal_abandon_rate") > B("B3", "v2", "goal_abandon_rate") + 0.1),
     ("B4: chat found later in v1 (v2 open from the start)", B("B4", "v1", "avg_ms_to_chat_open") > 5000 and B("B4", "v2", "avg_ms_to_chat_open") == 0),
     ("B4: some v1 sessions never open the chat, no v2", B("B4", "v1", "never_opened_rate") > 0 and B("B4", "v2", "never_opened_rate") == 0),
     ("B5: selection ignored -> wrong in v1, right in v2", B("B5", "v1", "wrong_answer_rate") == 1.0 and B("B5", "v2", "wrong_answer_rate") == 0),
     ("B5: repair attempts higher in v1", B("B5", "v1", "repair_rate") > B("B5", "v2", "repair_rate") + 0.3),
+    ("paste: every simulated pasted goal is flagged, nothing else",
+     q("SELECT COUNT(*) AS c FROM gold_turn_metrics WHERE pasted_goal = 1")[0]["c"] == n_sim_pasted > 0
+     and q("SELECT COUNT(*) AS c FROM gold_turn_metrics WHERE pasted = 1 AND pasted_goal = 0")[0]["c"] == 0),
+    ("paste: typed prompts never reach goal_sim 0.8", q("SELECT MAX(goal_sim) AS m FROM gold_turn_metrics WHERE pasted = 0")[0]["m"] < 0.8),
+    ("paste: goal summary reports pasted goals and excl-pasted success",
+     all(r["n_goals_pasted_goal"] is not None and r["success_rate_excl_pasted"] is not None for r in gsum.values())),
     ("G5 control: success within 0.2 across versions", abs(gsum[("G5", "v1")]["success_rate"] - gsum[("G5", "v2")]["success_rate"]) < 0.2),
 ]
 for name, ok in checks:
@@ -125,6 +137,7 @@ for (b, v), r in sorted(beh.items()):
     print(f"  {b} {v}  {str(r['n_turns'] or r['n_sessions']):>4} {f(r['wrong_answer_rate'])} {f(r['reformulation_rate'])} "
           f"{f(r['repair_rate'])} {f(r['verification_rate'])} {f(r['avg_latency_ms'], 0):>6}   {f(r['goal_abandon_rate'])}  "
           f"{f(r['overtrust_rate'])}   {f((r['avg_ms_to_chat_open'] or 0) / 1000 if r['avg_ms_to_chat_open'] is not None else None, 1)} {f(r['never_opened_rate'])}")
+print("  reformulation incl. -> excl. pasted goals:", {f"{b} {v}": (round(r["reformulation_rate"] or 0, 2), round(r["reformulation_rate_excl_pasted"] or 0, 2), round(r["pasted_goal_share"] or 0, 2)) for (b, v), r in sorted(beh.items()) if b != "B4"})
 print("gold_goal_summary (simulated): goal  success v1->v2  abandon v1->v2  turns v1->v2")
 for gid in ("G1", "G2", "G3", "G4", "G5"):
     a, b = gsum[(gid, "v1")], gsum[(gid, "v2")]

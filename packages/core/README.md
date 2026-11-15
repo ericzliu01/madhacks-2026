@@ -45,5 +45,7 @@ answer_id, correct, intent, answer, mark_x}`, `answer_feedback {feedback: accept
 and `selection {chart, series, mark_x, mark_y}` through `rec.emit`. `behavior` and `correct` are testbed ground truth from
 the stub assistant, not something the SDK infers.
 
+`paste {ctx, chars}` records where a paste landed and its length, never its content.
+
 Privacy defaults are unchanged: no keystroke content, no editor text, no password fields, no query strings. Prompt text
 only with `captureText` (or `setCaptureText(true)`); otherwise a salted hash and length.

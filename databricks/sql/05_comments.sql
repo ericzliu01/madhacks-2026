@@ -53,3 +53,5 @@ COMMENT ON TABLE ${catalog}.${schema}.gold_goal_summary IS
   'Per session_type, design version and goal: success, abandonment, turns, time to first prompt, over-trust (share of goals that showed a wrong answer) and drop-off (avg_failed_turns_at_dropoff = k). Small samples: descriptive only.';
 COMMENT ON TABLE ${catalog}.${schema}.gold_bot_behavior IS
   'Per planted assistant behavior (B1-B5) and design version (v1 flawed, v2 fixed): wrong-answer, reformulation, repair and verification rates, latency, and outcomes of the goals where the behavior fired. B4 (chat entry point hidden in v1) reports avg_ms_to_chat_open and never_opened_rate per session instead.';
+COMMENT ON COLUMN ${catalog}.${schema}.gold_turn_metrics.pasted_goal IS
+  '1 if the participant pasted into the chat box and the prompt has Jaccard similarity >= 0.8 with the goal text (the goal was handed to the assistant rather than phrased by the participant). Columns ending in _excl_pasted in the other chat tables repeat a metric without these.';

@@ -81,7 +81,15 @@ async function runBot(v, consent) {
   await accept(); await submit(4);
   // G5 (control): v1 bot gives up, v2 asks and answers.
   if (v === 1) await page.click('#g-giveup');
-  else { await ask("How much did Manhattan's daily trips vary, highest minus lowest?"); await accept(); await submit(5); }
+  else { // paste the goal text itself into the chat (a real paste event, then the text appears in the box)
+    const goalText = (await page.textContent('#g-q')) + ' ' + (await page.textContent('#g-fmt'));
+    await page.evaluate((t) => {
+      const el = document.getElementById('chat-input'), dt = new DataTransfer();
+      dt.setData('text/plain', t);
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, goalText);
+    await ask(goalText); await accept(); await submit(5);
+  }
   await page.waitForSelector('#g-done:not([hidden])');
   await page.waitForTimeout(2600); // periodic SDK flush
   await page.close();
@@ -117,6 +125,10 @@ const checks = [
   ['accept feedback logged with answer_id', of(v1, 'answer_feedback').some((e) => e.feedback === 'accept' && e.answer_id)],
   ['v1 outcomes', outcomes(v1) === 'G1:incorrect,G2:correct,G3:correct,G4:correct,G5:abandoned'],
   ['v2 outcomes all correct', outcomes(v2) === 'G1:correct,G2:correct,G3:correct,G4:correct,G5:correct'],
+  ['paste: event has where + length only, no content', of(v2, 'paste').length === 1 && of(v2, 'paste')[0].ctx === 'prompt' && of(v2, 'paste')[0].chars > 50 && !('text' in of(v2, 'paste')[0])],
+  ['paste: pasted goal flagged on its prompt (pasted + goal_sim >= 0.8)', (() => { const p = of(v2, 'prompt_submit').find((e) => e.goal === 'G5'); return p && p.pasted === true && p.goal_sim >= 0.8; })()],
+  ['paste: typed prompts are not flagged and stay below 0.8', of(v1, 'prompt_submit').every((e) => e.pasted === false && e.goal_sim < 0.8)],
+  ['pasted G5 goal still answered correctly by the stub', of(v2, 'goal_outcome').find((e) => e.goal === 'G5')?.status === 'correct'],
   ['every event is st=agent, app id set', [...v1, ...v2].every((e) => e.st === 'agent' && /^taxi-ops-demo-v[12]$/.test(e.app))],
   ['no query string in recorded path', !JSON.stringify(v1).includes('study=1') && !JSON.stringify(v1).includes('pid=C01')],
 ];

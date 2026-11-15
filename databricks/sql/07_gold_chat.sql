@@ -14,12 +14,16 @@
 --   overtrust       relied_on_wrong AND satisfaction 4-5 AND the final answer is not correct (a participant who
 --                   accepted a wrong reply but then submitted the right answer is not counted)
 --   dropoff         the goal ended abandoned or with no outcome after k >= 1 failed turns (k is reported)
+--   pasted_goal     the participant pasted into the chat box and the prompt's Jaccard similarity with the goal text is
+--                   >= 0.8: the goal was handed to the assistant, not phrased by the participant. Metrics named
+--                   *_excl_pasted repeat the main metric without these turns (or without goals whose first prompt was one).
 
 -- One row per turn with the flags above.
 CREATE OR REPLACE TABLE ${catalog}.${schema}.gold_turn_metrics AS
 SELECT t.session_id, t.session_type, t.app_id, t.app_version, t.participant_id, t.goal_id, t.turn_id,
        t.prompt_ms, t.response_ms, t.latency_ms, t.intent, t.behavior, t.answer_id, t.correct, t.accepted,
-       t.had_selection, t.overlap, t.chars, t.words,
+       t.had_selection, t.overlap, t.chars, t.words, t.goal_sim, t.pasted,
+       CASE WHEN t.pasted = 1 AND t.goal_sim >= 0.8 THEN 1 ELSE 0 END AS pasted_goal,
        CASE WHEN t.response_ms IS NOT NULL AND (t.correct = 0 OR t.correct IS NULL) THEN 1 ELSE 0 END AS failed,
        CASE WHEN t.next_prompt_ms IS NOT NULL AND t.next_prompt_ms - t.prompt_ms <= 60000
                  AND t.next_overlap >= 0.6 THEN 1 ELSE 0 END AS reformulated,
@@ -52,6 +56,8 @@ SELECT g.session_id, g.session_type, g.app_id, g.app_version, g.participant_id, 
        COALESCE(a.n_failed_turns, 0) AS n_failed_turns,
        COALESCE(a.n_reformulations, 0) AS n_reformulations,
        COALESCE(a.n_verified, 0) AS n_verified_turns,
+       COALESCE(a.n_pasted_goal, 0) AS n_pasted_goal_turns,
+       COALESCE(a.first_pasted_goal, 0) AS first_prompt_pasted_goal,
        a.first_prompt_ms - g.start_ms AS time_to_first_prompt_ms,
        CASE WHEN COALESCE(a.n_wrong, 0) > 0 THEN 1 ELSE 0 END AS wrong_answer_shown,
        COALESCE(w.relied_on_wrong, 0) AS relied_on_wrong,
@@ -60,7 +66,8 @@ SELECT g.session_id, g.session_type, g.app_id, g.app_version, g.participant_id, 
 FROM ${catalog}.${schema}.silver_goals g
 LEFT JOIN (
   SELECT session_id, goal_id, COUNT(*) AS n_turns, SUM(failed) AS n_failed_turns, SUM(reformulated) AS n_reformulations,
-         SUM(verified) AS n_verified, MIN(prompt_ms) AS first_prompt_ms,
+         SUM(verified) AS n_verified, MIN(prompt_ms) AS first_prompt_ms, SUM(pasted_goal) AS n_pasted_goal,
+         MAX(CASE WHEN turn_id = 1 THEN pasted_goal ELSE 0 END) AS first_pasted_goal,
          SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) AS n_wrong
   FROM ${catalog}.${schema}.gold_turn_metrics
   GROUP BY session_id, goal_id
@@ -88,7 +95,10 @@ SELECT session_type, app_version, goal_id, MAX(goal_cats) AS goal_cats,
        SUM(wrong_answer_shown) AS n_wrong_answer_shown,
        SUM(overtrust) * 1.0 / NULLIF(SUM(wrong_answer_shown), 0) AS overtrust_rate,
        AVG(dropoff_after_failure * 1.0) AS dropoff_rate,
-       AVG(CASE WHEN dropoff_after_failure = 1 THEN n_failed_turns * 1.0 END) AS avg_failed_turns_at_dropoff
+       AVG(CASE WHEN dropoff_after_failure = 1 THEN n_failed_turns * 1.0 END) AS avg_failed_turns_at_dropoff,
+       SUM(first_prompt_pasted_goal) AS n_goals_pasted_goal,
+       AVG(CASE WHEN first_prompt_pasted_goal = 0 THEN (CASE WHEN outcome = 'correct' THEN 1.0 ELSE 0.0 END) END) AS success_rate_excl_pasted,
+       AVG(CASE WHEN first_prompt_pasted_goal = 0 THEN time_to_first_prompt_ms * 1.0 END) AS avg_time_to_first_prompt_ms_excl_pasted
 FROM ${catalog}.${schema}.gold_goal_metrics
 GROUP BY session_type, app_version, goal_id;
 
@@ -100,14 +110,18 @@ CREATE OR REPLACE TABLE ${catalog}.${schema}.gold_bot_behavior AS
 SELECT t.session_type, t.behavior, t.app_version, t.n_turns, g.n_goals, NULL AS n_sessions,
        t.wrong_answer_rate, t.reformulation_rate, t.repair_rate, t.verification_rate, t.avg_latency_ms,
        g.goal_success_rate, g.goal_abandon_rate, g.overtrust_rate,
-       NULL AS avg_ms_to_chat_open, NULL AS never_opened_rate
+       NULL AS avg_ms_to_chat_open, NULL AS never_opened_rate,
+       t.pasted_goal_share, t.wrong_answer_rate_excl_pasted, t.reformulation_rate_excl_pasted, g.goal_abandon_rate_excl_pasted
 FROM (
   SELECT session_type, behavior, app_version, COUNT(*) AS n_turns,
          AVG(CASE WHEN correct = 0 THEN 1.0 ELSE 0.0 END) AS wrong_answer_rate,
          AVG(reformulated * 1.0) AS reformulation_rate,
          AVG(repair_attempt * 1.0) AS repair_rate,
          AVG(verified * 1.0) AS verification_rate,
-         AVG(latency_ms * 1.0) AS avg_latency_ms
+         AVG(latency_ms * 1.0) AS avg_latency_ms,
+         AVG(pasted_goal * 1.0) AS pasted_goal_share,
+         AVG(CASE WHEN pasted_goal = 0 THEN (CASE WHEN correct = 0 THEN 1.0 ELSE 0.0 END) END) AS wrong_answer_rate_excl_pasted,
+         AVG(CASE WHEN pasted_goal = 0 THEN reformulated * 1.0 END) AS reformulation_rate_excl_pasted
   FROM ${catalog}.${schema}.gold_turn_metrics
   WHERE behavior IS NOT NULL
   GROUP BY session_type, behavior, app_version
@@ -116,7 +130,8 @@ JOIN (
   SELECT b.session_type, b.behavior, b.app_version, COUNT(*) AS n_goals,
          AVG(CASE WHEN m.outcome = 'correct' THEN 1.0 ELSE 0.0 END) AS goal_success_rate,
          AVG(CASE WHEN m.outcome IN ('abandoned', 'no_outcome') THEN 1.0 ELSE 0.0 END) AS goal_abandon_rate,
-         SUM(m.overtrust) * 1.0 / NULLIF(SUM(m.wrong_answer_shown), 0) AS overtrust_rate
+         SUM(m.overtrust) * 1.0 / NULLIF(SUM(m.wrong_answer_shown), 0) AS overtrust_rate,
+         AVG(CASE WHEN m.first_prompt_pasted_goal = 0 THEN (CASE WHEN m.outcome IN ('abandoned', 'no_outcome') THEN 1.0 ELSE 0.0 END) END) AS goal_abandon_rate_excl_pasted
   FROM (SELECT DISTINCT session_type, behavior, app_version, session_id, goal_id
         FROM ${catalog}.${schema}.gold_turn_metrics WHERE behavior IS NOT NULL) b
   JOIN ${catalog}.${schema}.gold_goal_metrics m ON m.session_id = b.session_id AND m.goal_id = b.goal_id
@@ -128,7 +143,8 @@ SELECT s.session_type, 'B4' AS behavior, s.app_version, NULL AS n_turns, NULL AS
        AVG(CASE WHEN s.first_open_ms IS NULL THEN NULL
                 WHEN s.first_open_ms < s.first_goal_ms THEN 0.0
                 ELSE (s.first_open_ms - s.first_goal_ms) * 1.0 END) AS avg_ms_to_chat_open,
-       AVG(CASE WHEN s.first_open_ms IS NULL THEN 1.0 ELSE 0.0 END) AS never_opened_rate
+       AVG(CASE WHEN s.first_open_ms IS NULL THEN 1.0 ELSE 0.0 END) AS never_opened_rate,
+       NULL, NULL, NULL, NULL
 FROM (
   SELECT session_id, session_type, app_version,
          MIN(CASE WHEN event_type = 'goal_start' THEN ts_ms END) AS first_goal_ms,

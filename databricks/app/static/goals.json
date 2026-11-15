@@ -6,7 +6,8 @@
    "retrieve_value"
   ],
   "behavior": "B1",
-  "prompt": "Your manager thinks Brooklyn had far more trips than Queens in March. By what percentage did Brooklyn's total trips exceed Queens' total? (number, in %)",
+  "prompt": "Your manager is about to tell the board that Brooklyn was much busier than Queens in March. Before she does, find out how big Brooklyn's lead in total trips really was.",
+  "answer_format": "Brooklyn's lead as a percentage of Queens' total (number, in %)",
   "answer": 8.5,
   "tolerance": 2.0,
   "type": "number"
@@ -18,7 +19,8 @@
    "compute_derived_value"
   ],
   "behavior": "B2",
-  "prompt": "Finance needs the average fare for Bronx trips in March. What was it? (number, in $)",
+  "prompt": "Finance is reconciling Bronx receipts for March and needs the typical fare a rider paid there, weighted by trips.",
+  "answer_format": "the fare (number, in $)",
   "answer": 21.75,
   "tolerance": 0.05,
   "type": "number"
@@ -30,7 +32,8 @@
    "filter"
   ],
   "behavior": "B3",
-  "prompt": "Operations wants to plan around the quietest day. On which date did Queens have its fewest trips? (YYYY-MM-DD)",
+  "prompt": "Operations wants to schedule driver training on the quietest Queens day of March.",
+  "answer_format": "that date (YYYY-MM-DD)",
   "answer": "2026-03-18",
   "tolerance": 0,
   "type": "date"
@@ -43,7 +46,8 @@
    "retrieve_value"
   ],
   "behavior": "B5",
-  "prompt": "The Bronx operations lead says one day in March looked wrong in their numbers. Find that day and check why it stands out. Which date was it? (YYYY-MM-DD)",
+  "prompt": "The Bronx operations lead says one day in March looked off in their numbers. Find the day and work out why it stands out.",
+  "answer_format": "the date (YYYY-MM-DD)",
   "answer": "2026-03-24",
   "tolerance": 0,
   "type": "date",
@@ -59,7 +63,8 @@
    "determine_range"
   ],
   "behavior": null,
-  "prompt": "How much did Manhattan's daily trips vary over March: highest day minus lowest day? (number)",
+  "prompt": "A planner needs to know how much Manhattan's daily demand swings during March, from its busiest day to its quietest.",
+  "answer_format": "the difference in daily trips (number)",
   "answer": 1760,
   "tolerance": 150,
   "type": "number"

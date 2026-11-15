@@ -120,6 +120,7 @@
     <div id="g-work" hidden>
       <h2>Goal <span id="g-n"></span></h2>
       <div class="q" id="g-q"></div>
+      <div class="q" style="font-size:12px;color:var(--muted)">Answer with: <span id="g-fmt"></span></div>
       <div class="ans-row"><input type="text" id="g-answer" data-ux-id="goal-answer" aria-label="Your final answer" placeholder="Your final answer"></div>
       <div class="btns">
         <button id="g-submit" data-ux-id="goal-submit" data-ux-action="submit">Submit answer</button>
@@ -286,12 +287,22 @@
     let n = 0; A.forEach(w => { if (B.has(w)) n++; });
     return Math.round(1000 * n / Math.min(A.size, B.size)) / 1000;
   }
+  // Jaccard |A and B| / |A or B|: closeness to the whole goal text (spots a pasted goal); same as chatbot.jaccard()
+  function jaccard(a, b) {
+    const A = toks(a), B = toks(b);
+    if (!A.size || !B.size) return 0;
+    let n = 0; A.forEach(w => { if (B.has(w)) n++; });
+    return Math.round(1000 * n / (A.size + B.size - n)) / 1000;
+  }
   let prevPrompt = { goal: undefined, text: null };
+  let pastedIntoChat = false;        // a paste into the chat box since the last prompt
   function chatMeta(text, at) {
     const same = prevPrompt.goal === at.goal && prevPrompt.text !== null;
     const ov = same ? overlap(text, prevPrompt.text) : null;
     prevPrompt = { goal: at.goal, text };
-    return { overlap: ov, sel: !!selection };
+    const pasted = pastedIntoChat; pastedIntoChat = false;
+    const goalSim = current && current.id === at.goal ? jaccard(text, current.prompt + ' ' + (current.answer_format || '')) : null;
+    return { overlap: ov, sel: !!selection, pasted, goal_sim: goalSim };
   }
 
   const $c = id => document.getElementById(id);
@@ -379,6 +390,7 @@
     });
   }
   $c('chat-send').addEventListener('click', send);
+  input.addEventListener('paste', () => { pastedIntoChat = true; });
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 
   // chart -> chat: clicking a point on the Daily trips chart selects it for the assistant (B5)
@@ -427,6 +439,7 @@
     setSelection(null);
     $g('g-n').textContent = (gidx + 1) + ' / ' + goals.length;
     $g('g-q').textContent = current.prompt;
+    $g('g-fmt').textContent = current.answer_format || '';
     $g('g-answer').value = '';
     gshow('g-work');
     borough = 'All'; ['borough-inline', 'borough-menu'].forEach(id => { $g(id).value = 'All'; });
