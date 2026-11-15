@@ -281,7 +281,7 @@
         <span class="meta" style="margin:0">${pipe.n_statements || 0} statements on the SQL warehouse, as <b>${esc(pipe.as || pipe.would_run_as || '?')}</b>
         ${elapsed != null ? ` &middot; ${running ? 'running' : pipe.status} ${elapsed}s` : ''}${cur ? ` &middot; now: <code>${esc(cur.label)}</code>` : ''}</span>
       </div>
-      ${pipeCheck ? `<div class="warnbox" style="${pipeCheck.ok ? 'background:var(--okbg);color:var(--ok)' : 'background:var(--badbg);color:var(--bad)'}">Access check as ${esc(pipeCheck.as || '?')}: ${pipeCheck.ok ? 'OK, signed in as <b>' + esc(pipeCheck.me) + '</b>' : esc(pipeCheck.error)}</div>` : ''}
+      ${pipeCheck ? `<div class="warnbox" style="${pipeCheck.ok ? 'background:var(--okbg);color:var(--ok)' : 'background:var(--badbg);color:var(--bad)'}">Access check as ${esc(pipeCheck.as || '?')}: ${pipeCheck.ok ? 'OK, signed in as <b>' + esc(pipeCheck.me) + '</b>' : esc(pipeCheck.error)}${pipeCheck.token_scopes != null ? '<br>Scopes on your token: <code>' + esc(pipeCheck.token_scopes) + '</code>' : '<br>No user token reached the app (user authorization off).'}</div>` : ''}
       ${pipe.error ? `<div class="warnbox" style="background:var(--badbg);color:var(--bad);white-space:pre-wrap">${esc(pipe.error)}</div>` : ''}
       <div class="flow">
         <div class="layer ${pipe.status === 'running' || pipe.status === 'done' ? 'done' : ''}"><h4>Volume</h4>

@@ -182,6 +182,10 @@ check("pipeline: stops at the first failing statement and says which",
       st["status"] == "failed" and "silver_events" in st["error"] and "PERMISSION_DENIED" in st["error"]
       and [x["status"] for x in st["steps"]] == ["done", "failed", "pending"])
 err = pipeline.explain(RuntimeError("unable to parse response. This is likely a bug in the Databricks SDK\n```\nPOST /api/2.0/sql/statements/\n> * Host: x\n< 403 Forbidden\n< Invalid scope: the token is missing the sql scope\n```"))
+import base64
+jwt = "x." + base64.urlsafe_b64encode(json.dumps({"scope": "iam.current-user:read offline_access"}).encode()).decode().rstrip("=") + ".sig"
+check("token_scopes reads the scope claim only", app.token_scopes(jwt) == "iam.current-user:read offline_access"
+      and app.token_scopes(None) is None and app.token_scopes("opaque") == "(token is not a readable JWT)")
 check("pipeline: SDK 'unable to parse response' errors show the server's reply", "403 Forbidden" in err and "missing the sql scope" in err)
 
 sys.exit(0 if all(results) else 1)

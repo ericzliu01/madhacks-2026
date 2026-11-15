@@ -216,6 +216,21 @@ def load_proposals(directory):
     return sorted(sets, key=lambda d: str(d.get("generated_at", "")), reverse=True)
 
 
+def token_scopes(tok):
+    """The scope claim of the forwarded user token (a JWT), for diagnosing user authorization. Only the scope names
+    leave this function, never the token."""
+    if not tok:
+        return None
+    try:
+        import base64
+        part = tok.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+        sc = claims.get("scope", claims.get("scp"))
+        return sc if isinstance(sc, str) else " ".join(sc or []) or "(no scope claim)"
+    except Exception:
+        return "(token is not a readable JWT)"
+
+
 class Handler(SimpleHTTPRequestHandler):
     collector = None
     gold = None
@@ -251,11 +266,12 @@ class Handler(SimpleHTTPRequestHandler):
         if self.gold is None:
             return self.send_json({"ok": False, "error": "No SQL warehouse configured."})
         reader, who = self.user_reader()
+        scopes = token_scopes(self.headers.get("X-Forwarded-Access-Token"))
         try:
             row = reader.query("SELECT current_user() AS me")[0]
-            return self.send_json({"ok": True, "as": who, "me": row.get("me")})
+            return self.send_json({"ok": True, "as": who, "me": row.get("me"), "token_scopes": scopes})
         except Exception as ex:
-            return self.send_json({"ok": False, "as": who, "error": pipeline.explain(ex)})
+            return self.send_json({"ok": False, "as": who, "error": pipeline.explain(ex), "token_scopes": scopes})
 
     def send_json(self, obj, code=200):
         body = json.dumps(obj).encode()
