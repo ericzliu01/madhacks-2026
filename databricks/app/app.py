@@ -242,8 +242,20 @@ class Handler(SimpleHTTPRequestHandler):
         if run:
             self.pipeline.start(reader, who)
         out = dict(self.pipeline.status())
-        out["would_run_as"], out["n_statements"] = who, len([p for p in self.pipeline.plan() if p[0] != "comments"])
+        out["would_run_as"], out["n_statements"] = who, len(self.pipeline.steps())
+        out["user_token"] = bool(self.headers.get("X-Forwarded-Access-Token"))
         self.send_json(out)
+
+    def api_pipeline_check(self):
+        """SELECT current_user() with the identity the pipeline would use: shows who that is, or the real error."""
+        if self.gold is None:
+            return self.send_json({"ok": False, "error": "No SQL warehouse configured."})
+        reader, who = self.user_reader()
+        try:
+            row = reader.query("SELECT current_user() AS me")[0]
+            return self.send_json({"ok": True, "as": who, "me": row.get("me")})
+        except Exception as ex:
+            return self.send_json({"ok": False, "as": who, "error": pipeline.explain(ex)})
 
     def send_json(self, obj, code=200):
         body = json.dumps(obj).encode()
@@ -305,6 +317,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.api_results()
         if route == "/api/pipeline":
             return self.api_pipeline()
+        if route == "/api/pipeline/check":
+            return self.api_pipeline_check()
         if route == "/api/demo-config":  # workspace host for the demo console's links (no secrets)
             return self.send_json({"workspace": os.environ.get("DATABRICKS_HOST", "")})
         if route in ("/results", "/results/", "/demo", "/demo/"):

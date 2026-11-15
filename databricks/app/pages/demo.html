@@ -128,12 +128,14 @@
   };
   // Demo traffic is tagged st=demo: the pipeline drops it in silver, so nothing clicked here reaches the study tables.
   const dash = (v) => `/?study=0&st=demo&pid=DEMO&v=${v}`;
-  const ws = () => (store.get('ws', '') || window.__ws || '').replace(/\/+$/, '');
+  const GENIE_DEFAULT = 'https://dbc-a38020e0-1929.cloud.databricks.com/genie/rooms/01f1e0d7d06318a4b617c29aed683fac?o=7474643755182260';
+  const WS_DEFAULT = 'https://dbc-a38020e0-1929.cloud.databricks.com';
+  const ws = () => (store.get('ws', '') || window.__ws || WS_DEFAULT).replace(/\/+$/, '');
   const ext = {
     catalog: () => ws() && ws() + '/explore/data/workspace/ux_telemetry',
     volume: () => ws() && ws() + '/explore/data/volumes/workspace/ux_telemetry/raw_events',
     sql: () => ws() && ws() + '/sql/editor',
-    genie: () => store.get('genie', '')
+    genie: () => store.get('genie', '') || GENIE_DEFAULT
   };
 
   const STEPS = [
@@ -250,7 +252,7 @@
   }, 1000);
 
   // ---------------------------------------------------------------- pipeline (Volume -> bronze -> silver -> gold -> Genie)
-  let pipe = null, pipeTimer = null;
+  let pipe = null, pipeTimer = null, pipeCheck = null;
   const num = (x) => (x == null ? '–' : Number(x).toLocaleString());
   const pctv = (x) => (x == null ? '–' : Math.round(x * 100) + '%');
   function snapFor(layer) {  // the freshest snapshot that reflects this layer
@@ -275,10 +277,12 @@
     el.innerHTML = `
       <div class="runbar">
         <button class="primary" id="piperun" ${running ? 'disabled' : ''}>${running ? 'Running&hellip;' : pipe.status === 'done' ? 'Run again' : 'Run pipeline'}</button>
+        <button id="pipecheck" title="Runs SELECT current_user() as the identity the pipeline will use">Check access</button>
         <span class="meta" style="margin:0">${pipe.n_statements || 0} statements on the SQL warehouse, as <b>${esc(pipe.as || pipe.would_run_as || '?')}</b>
         ${elapsed != null ? ` &middot; ${running ? 'running' : pipe.status} ${elapsed}s` : ''}${cur ? ` &middot; now: <code>${esc(cur.label)}</code>` : ''}</span>
       </div>
-      ${pipe.error ? `<div class="warnbox" style="background:var(--badbg);color:var(--bad)">${esc(pipe.error)}</div>` : ''}
+      ${pipeCheck ? `<div class="warnbox" style="${pipeCheck.ok ? 'background:var(--okbg);color:var(--ok)' : 'background:var(--badbg);color:var(--bad)'}">Access check as ${esc(pipeCheck.as || '?')}: ${pipeCheck.ok ? 'OK, signed in as <b>' + esc(pipeCheck.me) + '</b>' : esc(pipeCheck.error)}</div>` : ''}
+      ${pipe.error ? `<div class="warnbox" style="background:var(--badbg);color:var(--bad);white-space:pre-wrap">${esc(pipe.error)}</div>` : ''}
       <div class="flow">
         <div class="layer ${pipe.status === 'running' || pipe.status === 'done' ? 'done' : ''}"><h4>Volume</h4>
           <div class="big">${num(c.bronze_files)}</div><div class="small">raw JSONL files (one per session upload)</div></div>
@@ -306,6 +310,12 @@
     pipeTimer = setTimeout(() => pollPipe(), pipe.status === 'running' ? 1000 : 5000);
   }
   $('frames').addEventListener('click', (e) => {
+    if (e.target.id === 'pipecheck') {
+      e.target.disabled = true; e.target.textContent = 'Checking…';
+      fetch('/api/pipeline/check', { cache: 'no-store' }).then((r) => r.json())
+        .catch((err) => ({ ok: false, error: String(err) })).then((r) => { pipeCheck = r; renderPipe(); });
+      return;
+    }
     if (e.target.id !== 'piperun') return;
     if (pipe && pipe.status === 'done' && !confirm('Rebuild bronze, silver and gold again?')) return;
     e.target.disabled = true; pollPipe(true);

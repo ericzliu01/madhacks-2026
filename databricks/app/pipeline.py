@@ -79,6 +79,18 @@ WHERE session_type = 'human' AND app_version = 'v1' ORDER BY n_dead_clicks + n_r
 """
 
 
+def explain(ex):
+    """A readable error. Older databricks-sdk versions report a non-JSON error body as 'unable to parse response'
+    followed by the request log; keep the server's reply lines (starting with '< ') so the real reason shows."""
+    text = f"{type(ex).__name__}: {ex}"
+    if "unable to parse response" in text:
+        reply = [ln[2:].strip() for ln in text.splitlines() if ln.startswith("< ")]
+        status = next((r for r in reply if r.startswith("HTTP") or r[:3].isdigit()), "")
+        body = [r for r in reply if r and r != status and not r.startswith("*")]
+        text = f"{type(ex).__name__} {status} {' '.join(body)[:600]}".strip() or text
+    return text[:900]
+
+
 class PipelineRun:
     """One run at a time. `reader` is a GoldReader-like object with .query(sql) bound to the chosen credentials."""
 
@@ -91,6 +103,10 @@ class PipelineRun:
         if not self.sql_file.exists():
             return []
         return split_statements(self.sql_file.read_text())
+
+    def steps(self, include_comments=False):
+        """Statements the console runs: no setup (the schema and Volume already exist), no comments unless asked."""
+        return [p for p in self.plan() if p[0] != "setup" and (include_comments or p[0] != "comments")]
 
     def snapshot(self, reader):
         s, snap = self.schema, {}
@@ -105,7 +121,7 @@ class PipelineRun:
         with self.lock:
             if self.state["status"] == "running":
                 return False
-            plan = [p for p in self.plan() if include_comments or p[0] != "comments"]
+            plan = self.steps(include_comments)
             if not plan:
                 self.state = {"status": "error", "error": f"{self.sql_file.name} is not in the app (run scripts/build-app.sh)",
                               "steps": [], "snapshots": {}, "as": who}
@@ -125,7 +141,7 @@ class PipelineRun:
                 reader.query(sql)
                 step["status"] = "done"
             except Exception as ex:
-                step["status"], step["error"] = "failed", f"{type(ex).__name__}: {ex}"[:400]
+                step["status"], step["error"] = "failed", explain(ex)
                 st["status"], st["error"] = "failed", f"stopped at '{step['label']}': {step['error']}"
                 st["snapshots"]["after"] = self.snapshot(reader)
                 return

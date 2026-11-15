@@ -142,7 +142,9 @@ srv.shutdown()
 # pipeline runner (demo console): statements split from the generated file, run in order, stops at the first failure
 import pipeline, time
 sqlf = tmp / "p.sql"
-sqlf.write_text("""-- ===================== 01b_bronze_load.sql
+sqlf.write_text("""-- ===================== 00_setup.sql
+CREATE SCHEMA IF NOT EXISTS s;
+-- ===================== 01b_bronze_load.sql
 -- a comment; with a semicolon
 CREATE OR REPLACE TABLE s.bronze_events AS
 SELECT 1 AS x;  -- trailing comment
@@ -159,9 +161,9 @@ class FakeReader:
         if sql.lstrip().startswith("SELECT"): return [{"n": 1}]   # snapshots
         if self.fail and self.fail in sql: raise RuntimeError("PERMISSION_DENIED: not the owner")
         self.ran.append(sql); return []
-plan = pipeline.split_statements(sqlf.read_text())
+plan = pipeline.split_statements(sqlf.read_text())[1:]
 check("pipeline: split by statement with stage and label, comments and inner ';' handled",
-      [(st, lb) for st, lb, _ in plan] == [("bronze", "build bronze_events"), ("silver", "build silver_events"),
+      pipeline.split_statements(sqlf.read_text())[0][0] == "setup" and [(st, lb) for st, lb, _ in plan] == [("bronze", "build bronze_events"), ("silver", "build silver_events"),
                                             ("gold", "build gold_goal_summary"), ("comments", "describe gold_goal_summary")]
       and "'a;b'" in plan[1][2])
 def wait(run):
@@ -171,13 +173,15 @@ def wait(run):
 run, fr = pipeline.PipelineRun("s", sqlf), FakeReader()
 run.start(fr, "you")
 st = wait(run)
-check("pipeline: runs every non-comment statement in order, snapshots each layer",
-      st["status"] == "done" and len(fr.ran) == 3 and {"before", "bronze", "silver", "gold", "after"} <= set(st["snapshots"]))
+check("pipeline: runs every statement except setup and comments, in order, snapshots each layer",
+      st["status"] == "done" and len(fr.ran) == 3 and not any("CREATE SCHEMA" in x for x in fr.ran) and {"before", "bronze", "silver", "gold", "after"} <= set(st["snapshots"]))
 run, fr = pipeline.PipelineRun("s", sqlf), FakeReader(fail="silver_events")
 run.start(fr, "the app's service principal")
 st = wait(run)
 check("pipeline: stops at the first failing statement and says which",
       st["status"] == "failed" and "silver_events" in st["error"] and "PERMISSION_DENIED" in st["error"]
       and [x["status"] for x in st["steps"]] == ["done", "failed", "pending"])
+err = pipeline.explain(RuntimeError("unable to parse response. This is likely a bug in the Databricks SDK\n```\nPOST /api/2.0/sql/statements/\n> * Host: x\n< 403 Forbidden\n< Invalid scope: the token is missing the sql scope\n```"))
+check("pipeline: SDK 'unable to parse response' errors show the server's reply", "403 Forbidden" in err and "missing the sql scope" in err)
 
 sys.exit(0 if all(results) else 1)
