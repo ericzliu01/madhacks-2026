@@ -63,6 +63,8 @@ for line in human_src.read_text().splitlines():
     e = json.loads(line)
     e.update(sid="human-check", st="human", _source_file="human-check.jsonl")
     hrows.append([e.get(c) for c in cols])
+    if e.get("type") == "click" and e.get("uxid") == "task-answer":  # as the SDK records it: own aria-label region
+        hrows.append([dict(e, t=e["t"] + 1, region="input:Your answer").get(c) for c in cols])
 db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", hrows)
 n += len(hrows)
 print(f"loaded {n} bronze events from {sessions} (+1 session relabelled human)")
@@ -94,6 +96,8 @@ checks = [
     ("F3: T4 duration v1 > 1.5x v2", cmp["T4"]["avg_duration_ms_v1"] > 1.5 * cmp["T4"]["avg_duration_ms_v2"]),
     ("F2: T3 success improves v1 -> v2", cmp["T3"]["success_delta"] > 0.15),
     ("study-panel clicks excluded from friction", q("SELECT COUNT(*) AS c FROM gold_element_friction WHERE uxid LIKE 'sat-%' OR uxid LIKE 'task-%'")[0]["c"] == 0),
+    ("answer-box clicks with their own region are excluded too (seen in real data)",
+     q("SELECT COUNT(*) AS c FROM gold_element_friction WHERE uxid IN ('task-answer', 'goal-answer')")[0]["c"] == 0),
 ]
 # ---------------------------------------------------------------- chat study (goals): planted assistant behaviors
 beh = {(r["behavior"], r["app_version"]): r for r in q(f"SELECT * FROM gold_bot_behavior WHERE {SIM}")}

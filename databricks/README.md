@@ -17,6 +17,7 @@ SDK / extension  ->  JSONL  ->  Volume (raw)  ->  bronze  ->  silver  ->  gold  
 | `sql/05_comments.sql` | Unity Catalog comments with the research definitions | Databricks only (untested) |
 | `genie/GENIE_SPACE.md` | how to curate the Genie space (instructions, example SQL, benchmarks) | manual in the UI |
 | `tools/make_sessions.py` | simulated sessions for pipeline testing | local |
+| `designer/propose.py` | Claude drafts design changes from the gold tables; every citation is checked; a UX developer approves (`review`) | local + Claude API |
 | `tests/run_sql_local.py` | runs 01-03 in SQLite and asserts the planted flaws are recovered | local |
 
 ## Run locally (no workspace needed)

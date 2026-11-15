@@ -165,15 +165,20 @@
 
   function proposalSection(p) {
     if (!p || !Array.isArray(p.changes)) return `<section class="card"><h2>Design proposals</h2><p class="sub">No proposal file yet. Run <code>databricks/designer/propose.py</code>.</p></section>`;
-    const items = p.changes.map((c) => {
-      const ev = (c.evidence || []).map((e) => `${esc(e.metric)} = ${esc(e.value)} (n=${esc(e.n)}, ${esc(e.session_type)}${e.uxid ? ', <code>' + esc(e.uxid) + '</code>' : ''})`).join('; ');
-      return `<div class="prop"><h3>${esc(c.id)}. ${esc(c.title)} <span class="muted" style="font-weight:400">on <code>${esc(c.uxid)}</code></span></h3>
+    const badge = (st) => `<span class="tag ${st === 'approved' ? 'human' : st === 'rejected' ? 'other' : 'simulated'}">${esc(st || 'pending')}</span>`;
+    const cite = (e) => `${esc(e.metric)} = ${esc(typeof e.value === 'number' ? +e.value.toFixed(3) : e.value)} (${esc(e.n_field || 'n')}=${esc(e.n)}, ${tagFor(e.session_type)} ${esc([e.task_id, e.goal_id, e.behavior, e.uxid, e.app_version].filter(Boolean).join(' · '))})`;
+    const items = p.changes.map((c) => `<div class="prop"><h3>${esc(c.id)}. ${esc(c.title)} ${badge(c.status)}
+        <span class="muted" style="font-weight:400">on <code>${esc(c.target || c.uxid)}</code></span></h3>
         <div>${esc(c.change)}</div>
-        <div class="ev"><b>Evidence:</b> ${ev || '–'}</div>
-        <div class="ev"><b>Why:</b> ${esc(c.rationale)}</div></div>`;
-    }).join('');
+        <div class="ev"><b>Evidence:</b> ${(c.evidence || []).map(cite).join('; ') || '–'}${c.simulated_only ? ' <b>(simulated evidence only)</b>' : ''}</div>
+        <div class="ev"><b>Why:</b> ${esc(c.rationale)}</div>
+        <div class="ev"><b>Re-test on:</b> <code>${esc(c.retest_metric || '–')}</code> · expected: ${esc(c.expected_effect || '–')}</div>
+        ${c.reviewed_by ? `<div class="ev"><b>Review:</b> ${esc(c.status)} by ${esc(c.reviewed_by)}${c.review_note ? ': ' + esc(c.review_note) : ''}</div>` : ''}</div>`).join('');
+    const rej = (p.rejected_by_validator || []).length;
     return `<section class="card"><h2>Design proposals <span class="muted" style="font-weight:400;font-size:13px">by ${esc(p.designer || 'Claude')}, ${esc(p.generated_at || '')}</span></h2>
-      <p class="sub">${esc(p.summary || '')} Each change cites the metric and element behind it. The check is the v1 → v2 re-test above, not a sign-off.</p>${items}</section>`;
+      <p class="sub">${esc(p.summary || '')} Every citation was checked against the gold tables (value, n, element). A UX developer approves or
+      rejects each change; only approved changes are re-tested against v1.${p.literature_note ? ' ' + esc(p.literature_note) : ''}
+      ${rej ? ` ${rej} drafted change(s) failed the citation check and are not shown.` : ''}</p>${items}</section>`;
   }
 
   async function load() {

@@ -5,3 +5,4 @@ events.jsonl
 databricks/data/
 databricks/app/events/
 __pycache__/
+databricks/designer/out/

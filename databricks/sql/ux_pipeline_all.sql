@@ -108,7 +108,9 @@ LEFT JOIN (
 --   hover dwell, hovers     -> attention / reading effort on chart marks              (cursor-as-attention: Huang et al. 2012)
 --   idle_ms, first action   -> hesitation / confusion before acting                   (implicit behavioral measures: Rzeszotarski & Kittur 2011)
 --   outcome + satisfaction  -> objective success vs self-report; "satisfied but wrong" = over-trust (Human-AI reliance work)
--- Portable subset (Databricks SQL and the local SQLite harness). Study-panel clicks are excluded from friction counts.
+-- Portable subset (Databricks SQL and the local SQLite harness). Study-panel clicks are excluded from friction counts,
+-- by region AND by element id: inputs with their own aria-label (the answer boxes) get their own region from the SDK,
+-- so the region test alone let them through (seen in the first human session: goal-answer showed up as friction).
 
 -- Per-trial friction metrics: behavior events that fall inside the trial's time window.
 CREATE OR REPLACE TABLE workspace.ux_telemetry.gold_trial_metrics AS
@@ -129,6 +131,7 @@ LEFT JOIN workspace.ux_telemetry.silver_events e
  AND e.ts_ms >= t.start_ms
  AND e.ts_ms <= COALESCE(t.end_ms, 9223372036854775807)
  AND COALESCE(e.region, '') <> 'aside:study-panel'
+ AND COALESCE(e.uxid, '') NOT LIKE 'task-%' AND COALESCE(e.uxid, '') NOT LIKE 'goal-%' AND COALESCE(e.uxid, '') NOT LIKE 'sat-%' AND COALESCE(e.uxid, '') NOT LIKE 'gsat-%' AND COALESCE(e.uxid, '') NOT LIKE 'consent-%'
 GROUP BY t.session_id, t.session_type, t.app_id, t.app_version, t.participant_id, t.task_id, t.task_category,
          t.outcome, t.satisfaction, t.duration_ms, t.start_ms;
 
@@ -163,6 +166,7 @@ SELECT session_type, app_version, uxid,
          / NULLIF(SUM(CASE WHEN event_type = 'click' THEN 1.0 ELSE 0.0 END), 0) AS rage_per_click
 FROM workspace.ux_telemetry.silver_events
 WHERE uxid IS NOT NULL AND event_type IN ('click', 'rage_click') AND COALESCE(region, '') <> 'aside:study-panel'
+  AND COALESCE(uxid, '') NOT LIKE 'task-%' AND COALESCE(uxid, '') NOT LIKE 'goal-%' AND COALESCE(uxid, '') NOT LIKE 'sat-%' AND COALESCE(uxid, '') NOT LIKE 'gsat-%' AND COALESCE(uxid, '') NOT LIKE 'consent-%'
 GROUP BY session_type, app_version, uxid;
 
 -- Before/after for the iteration loop: v1 (current UI) vs v2 (proposed change), per session type and task.
