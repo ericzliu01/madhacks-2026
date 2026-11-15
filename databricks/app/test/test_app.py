@@ -36,6 +36,8 @@ rows = [json.loads(l) for f in files for l in f.read_text().splitlines()]
 check("one file for one flush", len(files) == 1)
 check("both events written with recv_t", len(rows) == 2 and all("recv_t" in r for r in rows))
 check("static served", urllib.request.urlopen(f"http://127.0.0.1:{port}/index.html").read() == b"<h1>hi</h1>")
+st = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/status").read())
+check("/status reports sink and counts", st["sink"] == "LocalSink" and st["written"] == 2 and st["flush_errors"] == 0)
 check("/healthz ok", urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz").read() == b"ok")
 srv.shutdown()
 
@@ -57,7 +59,7 @@ check("volume payload is JSONL", all(json.loads(l)["type"] == "click" for l in F
 # 3. failed upload keeps events and retries
 FakeClient.files.fail = 1
 col.add([{"type": "key"}]); col.flush()
-check("failure keeps events buffered", len(col.buf) == 1 and col.errors == 1)
+check("failure keeps events buffered", len(col.buf) == 1 and col.errors == 1 and "boom" in col.last_error)
 col.flush()
 check("retry delivers them", len(col.buf) == 0 and col.written == 4)
 

@@ -60,7 +60,7 @@ class Collector:
     def __init__(self, sink, flush_secs=3.0, flush_events=200):
         self.sink, self.flush_secs, self.flush_events = sink, flush_secs, flush_events
         self.buf, self.lock = [], threading.Lock()
-        self.written, self.errors = 0, 0
+        self.written, self.errors, self.last_error = 0, 0, None
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True)
 
@@ -90,6 +90,7 @@ class Collector:
             self.written += len(batch)
         except Exception as ex:  # keep the events and retry on the next flush
             self.errors += 1
+            self.last_error = f"{type(ex).__name__}: {ex}"[:300]
             print(f"flush failed ({type(ex).__name__}: {ex}); keeping {len(batch)} events", flush=True)
             with self.lock:
                 self.buf = batch + self.buf
@@ -127,6 +128,17 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path.split("?")[0] == "/status":  # where events go and whether uploads work (no secrets)
+            c = self.collector
+            body = json.dumps({"sink": type(c.sink).__name__, "where": c.sink.where(), "buffered": len(c.buf),
+                               "written": c.written, "flush_errors": c.errors,
+                               "last_error": c.last_error}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/healthz":
             body = b"ok"
             self.send_response(200)
