@@ -23,7 +23,7 @@ const logAxis = {};
 async function runBot(v, consent) {
   const before = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').split('\n').filter(Boolean).length : 0;
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  await page.goto(`http://127.0.0.1:${PORT}/?study=1&pid=C0${v}&st=agent&v=${v}`);
+  await page.goto(`http://127.0.0.1:${PORT}/?study=1&chat=1&pid=C0${v}&st=agent&v=${v}`);
   await page.waitForSelector('#g-start');
   await page.waitForSelector('#line .scatterlayer .trace');
   logAxis[v] = await page.evaluate(() => [...document.querySelectorAll('#line, #bar')].map((gd) => gd.data.map((t) => t.hoverinfo || 'all').join()).join('/'));
@@ -96,6 +96,13 @@ async function runBot(v, consent) {
   return { evs, typingShown };
 }
 
+// default link (no chat=1): the assistant is switched off for now
+const plain = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+await plain.goto(`http://127.0.0.1:${PORT}/?study=1&pid=C09&st=agent&v=1`);
+await plain.waitForSelector('#g-start');
+const noChat = await plain.evaluate(() => ['#chat', '#chat-launch', '#g-consent'].every((q) => {
+  const el = document.querySelector(q); return !el || el.offsetParent === null; }));
+await plain.close();
 const r1 = await runBot(1, true);
 const r2 = await runBot(2, false);
 await browser.close(); server.kill();
@@ -129,6 +136,7 @@ const checks = [
   ['paste: pasted goal flagged on its prompt (pasted + goal_sim >= 0.8)', (() => { const p = of(v2, 'prompt_submit').find((e) => e.goal === 'G5'); return p && p.pasted === true && p.goal_sim >= 0.8; })()],
   ['paste: typed prompts are not flagged and stay below 0.8', of(v1, 'prompt_submit').every((e) => e.pasted === false && e.goal_sim < 0.8)],
   ['pasted G5 goal still answered correctly by the stub', of(v2, 'goal_outcome').find((e) => e.goal === 'G5')?.status === 'correct'],
+  ['default link: no assistant, no button, no prompt-text consent box', noChat],
   ['every event is st=agent, app id set', [...v1, ...v2].every((e) => e.st === 'agent' && /^taxi-ops-demo-r2-v[12]$/.test(e.app))],
   ['no query string in recorded path', !JSON.stringify(v1).includes('study=1') && !JSON.stringify(v1).includes('pid=C01')],
 ];

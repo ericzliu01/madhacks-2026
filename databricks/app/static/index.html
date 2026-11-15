@@ -56,7 +56,8 @@
   #chat-launch { position:fixed; left:16px; bottom:16px; z-index:20; }
   #chat-launch { border-radius:20px; border:0; background:var(--accent); color:#fff; padding:9px 16px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.18); }
   body.chat-on main { padding-bottom:300px; }  /* the open panel must not hide content */
-  body.tasks #chat, body.tasks #chat-launch { display:none !important; }
+  body.tasks #chat, body.tasks #chat-launch, body.nochat #chat, body.nochat #chat-launch,
+  body.nochat .asst-only { display:none !important; }
 </style>
 </head>
 <body>
@@ -110,9 +111,9 @@
   <aside id="goals" class="card" data-ux-region="study-panel" hidden>
     <div id="g-intro">
       <h2>Welcome</h2>
-      <div class="q">You'll get 5 goals from colleagues at Taxi Ops. Use the dashboard and its assistant however you like,
+      <div class="q">You'll get 5 goals from colleagues at Taxi Ops. Use the dashboard<span class="asst-only"> and its assistant</span> however you like,
         then give your final answer. Answers can be wrong; please answer as you would at work.</div>
-      <label class="consent"><input type="checkbox" id="g-consent" data-ux-id="consent-text">
+      <label class="consent asst-only"><input type="checkbox" id="g-consent" data-ux-id="consent-text">
         <span>Record the text of my questions to the assistant. <small>(Unchecked: only their length and a one-way hash are kept.)</small></span></label>
       <button id="g-start" data-ux-id="goal-start">Start</button>
     </div>
@@ -175,6 +176,9 @@
   const PID = sticky('pid', () => 'P-' + Math.random().toString(36).slice(2, 8).toUpperCase());
   // goals (default): open-ended goals worked on with the chat assistant. tasks: the original scripted task panel.
   const MODE = qs.get('mode') === 'tasks' ? 'tasks' : 'goals';
+  // The AI assistant is switched off for now (participants use the charts only); ?chat=1 turns it back on.
+  const CHAT_ON = qs.get('chat') === '1';
+  if (!CHAT_ON) document.body.classList.add('nochat');
   document.body.classList.add('v' + V);
   if (STUDY) document.body.classList.add('study');
   document.body.classList.add(MODE);
@@ -323,7 +327,7 @@
     chatEl.hidden = true; launch.hidden = false; document.body.classList.remove('chat-on');
     rec.emit('chat_close', {});
   }
-  if (MODE !== 'tasks') {
+  if (MODE !== 'tasks' && CHAT_ON) {
     launch.addEventListener('click', () => openChat('click'));
     $c('chat-min').addEventListener('click', closeChat);
     // Both versions start with the assistant open; minimized, it shows as a labeled button (B4 retired in revision 2)

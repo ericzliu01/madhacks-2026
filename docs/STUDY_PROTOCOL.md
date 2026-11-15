@@ -1,4 +1,8 @@
-# Protocol: 3-5 real sessions with the chat assistant (goals mode)
+# Protocol: 3-5 real sessions (goals mode)
+
+**Current setup (design revision 2):** the AI assistant is switched off; participants use the charts only. v1 has no
+hover tooltips, v2 has them. Links: `<app-url>/?pid=P01&v=1`, `?pid=P02&v=2`, ... alternating. (`&chat=1` would turn the
+assistant back on; do not mix sessions with and without it.)
 
 Goal: a handful of real sessions next to the simulated ones. With n = 3-5 the results are **descriptive only**: report
 counts, never significance. Cursor and chart events are not eye tracking and only loosely track attention.
@@ -11,9 +15,8 @@ counts, never significance. Cursor and chart events are not eye tracking and onl
 
 ## Consent (read aloud, about 30 s)
 "This is a hackathon usability study of a demo dashboard. We record clicks, cursor movement, typing counts (not what you
-type), and your answers. If you tick the box on the first screen, we also record the text of the questions you ask the
-assistant; otherwise only their length and a one-way hash. No name or account is stored: you get a random id. The
-assistant is a scripted bot that is sometimes wrong on purpose. You can stop at any time."
+type), and your answers. No name or account is stored: you get an id like P01. Some parts of the dashboard are
+deliberately harder to use than others. You can stop at any time."
 
 ## During (about 10 minutes)
 1. Open the plain app URL (no parameters). Click **Start**.

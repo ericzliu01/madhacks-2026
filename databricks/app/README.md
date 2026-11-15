@@ -33,6 +33,7 @@ Serves the planted-flaw "Taxi Ops" dashboard (v1 flawed, v2 fixed) and writes th
   (`chatbot.py`, synced from `demo/dashboard/chatbot.py` by `scripts/sync-core.sh`) with planted behaviors B1-B5. The
   prompt is used to answer and never stored by the app; the browser decides whether its text is logged (consent box).
 - `?mode=tasks`: the original task panel (T1-T5).
+- The assistant is off by default for now; `?chat=1` turns it on (goals mode).
 - `CHAT_LATENCY_SCALE` (env, default 1) scales the planted reply delays (B3: 7 s in v1, 1.5 s in v2).
 
 ## Results page (`/results`)
