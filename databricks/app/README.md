@@ -18,11 +18,15 @@ Serves the planted-flaw "Taxi Ops" dashboard (v1 flawed, v2 fixed) and writes th
    ```sql
    GRANT USE CATALOG ON CATALOG workspace TO `<service-principal-id>`;
    GRANT USE SCHEMA ON SCHEMA workspace.ux_telemetry TO `<service-principal-id>`;
+   GRANT READ VOLUME ON VOLUME workspace.ux_telemetry.raw_events TO `<service-principal-id>`;
    GRANT WRITE VOLUME ON VOLUME workspace.ux_telemetry.raw_events TO `<service-principal-id>`;
    ```
+   Use the **client_id** (a UUID) from the app's page or from `/status`'s `last_error`, not the display name. The Files API
+   upload needs READ VOLUME as well as WRITE VOLUME (found on first deploy).
 4. Open the app URL with study parameters: `?study=1&pid=P01&st=human&v=1` (or `v=2`).
    Participants need to be signed in to the workspace to open the app.
-5. Re-run `01b_bronze_load.sql` (COPY INTO skips files it already loaded), then `02`, `03`.
+5. Re-run `01b_bronze_load.sql` (it skips files already in bronze), then `02`, `03`.
+6. Debug: open `<app-url>/status` to see the sink, buffered/written counts, and the last upload error.
 
 Free Edition apps stop 24 hours after deploy: redeploy before demoing. Events buffer for `FLUSH_SECS` (3 s) before upload.
 
