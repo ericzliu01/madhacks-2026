@@ -74,7 +74,19 @@ db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join(
                [r[:cols.index('sid')] + ["excluded-check"] + r[cols.index('sid') + 1:] for r in hrows[:5]])
 db.execute("INSERT INTO excluded_sessions VALUES ('excluded-check', 'test: must be skipped')")
 n += 5
-print(f"loaded {n} bronze events from {sessions} (+1 session relabelled human, +1 excluded)")
+# live-demo sessions (st=demo): one that finished G1-G3 (counts as a human trial), one that stopped after G1 (dropped)
+chat_src = sorted(sessions.glob("simchat-*.jsonl"))[0]
+demo_rows, partial = [], []
+for line in chat_src.read_text().splitlines():
+    e = json.loads(line)
+    e.update(st="demo", pid="DEMO-T1", _source_file="demo.jsonl")
+    demo_rows.append([dict(e, sid="demo-complete").get(c) for c in cols])
+    if not (e.get("type") == "goal_outcome" and e.get("goal") != "G1"):
+        partial.append([dict(e, sid="demo-partial").get(c) for c in cols])
+db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", demo_rows + partial)
+n_demo = len(demo_rows) + len(partial)
+n += n_demo
+print(f"loaded {n} bronze events from {sessions} (+1 session relabelled human, +1 excluded, +2 demo)")
 
 for name in ("02_silver.sql", "03_gold.sql", "06_silver_chat.sql", "07_gold_chat.sql"):
     for stmt in prep((SQL / name).read_text()):
@@ -92,7 +104,8 @@ human = q("SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE session_type =
 sim_n = q(f"SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE {SIM}")[0]["n"]
 
 checks = [
-    ("silver dedupes nothing it shouldn't (events == bronze minus excluded)", count("silver_events") == count("bronze_events") - 5),
+    ("silver dedupes nothing it shouldn't (events == bronze minus excluded and the partial demo)",
+     count("silver_events") == count("bronze_events") - 5 - len(partial)),
     ("one trial per session x task (60 simulated + 2 human sessions x 5)", count("silver_trials") == 310),
     ("gold keeps human trials apart from simulated (5 vs 300)", human == 5 and sim_n == 300),
     ("sessions in excluded_sessions never reach silver", q("SELECT COUNT(*) AS c FROM silver_events WHERE session_id = 'excluded-check'")[0]["c"] == 0),
@@ -118,9 +131,13 @@ n_sim_pasted = sum(1 for f in sessions.glob("simchat-*.jsonl") for line in f.rea
 gen_ok = subprocess.run([sys.executable, "-I", str(HERE.parent / "tools/gen_bronze_load.py"), "--check"]).returncode == 0
 checks += [
     ("01b read_files schema is in sync with the 01 DDL", gen_ok),
-    ("chat: 60 sessions x 5 goals in silver_goals", count("silver_goals") == 300),
+    ("chat: 60 simulated sessions x 5 goals in silver_goals", q(f"SELECT COUNT(*) AS c FROM silver_goals WHERE {SIM}")[0]["c"] == 300),
     ("chat: every simulated turn has a reply", q("SELECT COUNT(*) AS c FROM silver_turns WHERE response_ms IS NULL")[0]["c"] == 0),
-    ("chat rows are all simulated", q("SELECT COUNT(*) AS c FROM gold_goal_metrics WHERE session_type <> 'simulated'")[0]["c"] == 0),
+    ("chat rows are all simulated, except the finished demo session (counted as human)",
+     [r["session_id"] for r in q("SELECT DISTINCT session_id FROM gold_goal_metrics WHERE session_type <> 'simulated'")] == ["demo-complete"]
+     and q("SELECT DISTINCT session_type AS s FROM gold_goal_metrics WHERE session_id = 'demo-complete'")[0]["s"] == "human"),
+    ("demo: a session that did not finish G1-G3 never reaches silver",
+     q("SELECT COUNT(*) AS c FROM silver_events WHERE session_id = 'demo-partial'")[0]["c"] == 0),
     ("B1: v1 percent answers wrong, v2 right", B("B1", "v1", "wrong_answer_rate") == 1.0 and B("B1", "v2", "wrong_answer_rate") == 0),
     ("B1: over-trust on G1 higher in v1 than v2", (gsum[("G1", "v1")]["overtrust_rate"] or 0) > 0.3 > (gsum[("G1", "v2")]["overtrust_rate"] or 0)),
     # a rephrase after a PASTED goal shares few tokens with the long goal text, so the plain rate undercounts: use the
@@ -136,8 +153,8 @@ checks += [
     ("B5: selection ignored -> wrong in v1, right in v2", B("B5", "v1", "wrong_answer_rate") == 1.0 and B("B5", "v2", "wrong_answer_rate") == 0),
     ("B5: repair attempts higher in v1", B("B5", "v1", "repair_rate") > B("B5", "v2", "repair_rate") + 0.3),
     ("paste: every simulated pasted goal is flagged, nothing else",
-     q("SELECT COUNT(*) AS c FROM gold_turn_metrics WHERE pasted_goal = 1")[0]["c"] == n_sim_pasted > 0
-     and q("SELECT COUNT(*) AS c FROM gold_turn_metrics WHERE pasted = 1 AND pasted_goal = 0")[0]["c"] == 0),
+     q(f"SELECT COUNT(*) AS c FROM gold_turn_metrics WHERE {SIM} AND pasted_goal = 1")[0]["c"] == n_sim_pasted > 0
+     and q(f"SELECT COUNT(*) AS c FROM gold_turn_metrics WHERE {SIM} AND pasted = 1 AND pasted_goal = 0")[0]["c"] == 0),
     ("paste: typed prompts never reach goal_sim 0.8", q("SELECT MAX(goal_sim) AS m FROM gold_turn_metrics WHERE pasted = 0")[0]["m"] < 0.8),
     ("paste: goal summary reports pasted goals and excl-pasted success",
      all(r["n_goals_pasted_goal"] is not None and r["success_rate_excl_pasted"] is not None for r in gsum.values())),

@@ -66,6 +66,7 @@
   <div class="pills" id="pills"><span class="pill">checking&hellip;</span></div>
   <div class="timer">
     <span id="clock" title="Elapsed (4:00 slot)">0:00</span>
+    <button id="trial" title="A full 3-goal session that counts as a human trial">Live trial</button>
     <button id="go" class="primary" title="Space">Start</button>
     <button id="reset" title="Reset the timer">Reset</button>
   </div>
@@ -153,9 +154,9 @@
   ];
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-  let cur = Math.min(+store.get('step', 0) || 0, STEPS.length - 1), tab = 0;
+  let cur = Math.min(+store.get('step', 0) || 0, STEPS.length - 1), tab = 0, trial = null;
   function renderSteps() {
-    $('steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === cur ? 'on' : i < cur ? 'done' : ''}">${fmt(s.t)} ${esc(s.title)}</button>`).join('');
+    $('steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === cur && !trial ? 'on' : i < cur ? 'done' : ''}">${fmt(s.t)} ${esc(s.title)}</button>`).join('');
   }
   function linkBtn([label, key]) {
     const u = ext[key]();
@@ -190,7 +191,7 @@
         ${u ? `<a class="btn" href="${esc(u)}" target="db-${st.ext}" rel="noopener">Open ${esc(st.label)} &#8599;</a>` : '<div class="warnbox">Set the URL under Settings first.</div>'}</div></div></div>`;
     }
   }
-  function go(i) { cur = Math.max(0, Math.min(STEPS.length - 1, i)); tab = 0; store.set('step', cur); renderSteps(); renderNotes(); renderStage(); }
+  function go(i) { trial = null; $('trial').classList.remove('primary'); cur = Math.max(0, Math.min(STEPS.length - 1, i)); tab = 0; store.set('step', cur); renderSteps(); renderNotes(); renderStage(); }
 
   $('steps').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) go(+b.dataset.i); });
   $('tabs').addEventListener('click', (e) => {
@@ -203,6 +204,45 @@
     try { await navigator.clipboard.writeText(q); b.textContent = 'Copied'; } catch (err) { b.textContent = 'Copy failed'; }
     setTimeout(() => { b.textContent = 'Copy'; }, 1200);
   });
+
+  // ---------------------------------------------------------------- live trial
+  // A normal study session (3 goals, chart only) tagged st=demo with a DEMO- participant id. The pipeline counts it as
+  // a human trial only if all three goals are finished (answered or given up); otherwise it is dropped in silver.
+  function newTrial(v) {
+    trial = { v, pid: 'DEMO-' + Date.now().toString(36).toUpperCase() };
+    $('trial').classList.add('primary'); renderSteps(); renderTrial();
+  }
+  function renderTrial() {
+    $('notes').innerHTML = `<h2>Live trial</h2><div class="meta">Counts as a human trial once all 3 goals are finished</div>
+      <h3>Who</h3><p class="say">Hand the laptop to someone who hasn't seen the answers (a judge or a visitor), not a team member.</p>
+      <h3>Say</h3><ol><li>"Answer three questions using only this dashboard. Take your time; giving up is fine."</li>
+      <li>Don't help or point at anything while they work.</li></ol>
+      <h3>After</h3><ol><li>The session is written to the Volume within a few seconds.</li>
+      <li>Rerun <code>ux_pipeline_all.sql</code>: it appears under <b>human</b>, participant <code>${esc(trial.pid)}</code>.</li>
+      <li>Not finished = not counted (same rule as the partial sessions excluded earlier).</li></ol>
+      <div class="warnbox">Takes about 5 minutes: run it outside the 4-minute pitch, or while judges watch after it.</div>`;
+    $('tabs').innerHTML = `<button data-v="1" class="${trial.v === 1 ? 'on' : ''}">New trial on v1</button>
+      <button data-v="3" class="${trial.v === 3 ? 'on' : ''}">New trial on v3 (build-1)</button>
+      <span class="spacer"></span><span class="pill" id="tprog">${esc(trial.pid)} &middot; not started</span>`;
+    $('frames').className = 'frames';
+    $('frames').innerHTML = `<div class="frame"><div class="cap">${esc(trial.pid)} on v${trial.v} &middot; study mode, 3 goals</div>
+      <iframe id="tframe" src="/?st=demo&pid=${encodeURIComponent(trial.pid)}&v=${trial.v}" title="Live trial"></iframe></div>`;
+  }
+  $('trial').addEventListener('click', () => newTrial(+store.get('trialv', 3) || 3));
+  $('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-v]'); if (!b || !trial) return;
+    if (!confirm('Start a new trial? The current one only counts if all 3 goals are finished.')) return;
+    store.set('trialv', b.dataset.v); newTrial(+b.dataset.v);
+  });
+  setInterval(() => {  // progress, read from the dashboard frame (same site)
+    const f = $('tframe'), el = $('tprog'); if (!trial || !f || !el) return;
+    try {
+      const d = f.contentDocument, done = d.getElementById('g-done'), n = d.getElementById('g-n');
+      const fin = done && !done.hidden;
+      el.className = 'pill' + (fin ? ' ok' : '');
+      el.textContent = `${trial.pid} · ` + (fin ? 'all 3 goals finished: counts as a human trial' : n && n.textContent ? 'goal ' + n.textContent : 'not started');
+    } catch (err) { /* frame still loading */ }
+  }, 1000);
 
   // ---------------------------------------------------------------- timer
   let started = null, acc = 0;

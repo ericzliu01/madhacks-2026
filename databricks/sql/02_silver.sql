@@ -14,7 +14,11 @@ FROM (
          -- Design revision 2 (2026-11-15): no hover tooltips in v1 (F5), assistant visible in both versions
          -- (B4 retired). Human and agent sessions recorded on the earlier design get their own session type
          -- (human_r1, agent_r1) so they are never pooled with revision-2 data. Simulated data is generated, not recorded.
-         CASE WHEN st IN ('human', 'agent') AND app NOT LIKE '%-r2-%' THEN st || '_r1' ELSE st END AS session_type,
+         -- Live-demo sessions (st=demo, from the /demo console) count as human trials only when all three study goals
+         -- were finished (answered or given up); anything less is dropped below, like the partial sessions excluded by hand.
+         -- Their participant ids start with DEMO- so they can be told apart or excluded later.
+         CASE WHEN st = 'demo' THEN 'human'
+              WHEN st IN ('human', 'agent') AND app NOT LIKE '%-r2-%' THEN st || '_r1' ELSE st END AS session_type,
          app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
          task AS task_id, tcat AS task_category, page, path, type AS event_type,
          CAST(t AS BIGINT) AS ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
@@ -27,7 +31,10 @@ FROM (
          ) AS rn
   FROM ${catalog}.${schema}.bronze_events
   WHERE sid IS NOT NULL AND t IS NOT NULL
-    AND COALESCE(st, '') <> 'demo'  -- live-demo clicks (demo console, st=demo) never reach the study tables
+    AND (COALESCE(st, '') <> 'demo' OR sid IN (
+          SELECT sid FROM ${catalog}.${schema}.bronze_events
+          WHERE st = 'demo' AND type = 'goal_outcome' AND goal IN ('G1', 'G2', 'G3')
+          GROUP BY sid HAVING COUNT(DISTINCT goal) = 3))
     AND sid NOT IN (SELECT session_id FROM ${catalog}.${schema}.excluded_sessions WHERE session_id IS NOT NULL)
 ) d
 WHERE rn = 1;
