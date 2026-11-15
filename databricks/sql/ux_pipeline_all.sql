@@ -424,7 +424,7 @@ GROUP BY s.session_type, s.app_version;
 -- Spark/Databricks SQL only. UNTESTED (no workspace access from the sandbox).
 
 COMMENT ON TABLE workspace.ux_telemetry.gold_trial_metrics IS
-  'One row per (session, task) trial with friction metrics. Behavior counts exclude the study panel. Data with session_type=simulated is bot-generated test data, not real users.';
+  'One row per (session, task) trial with friction metrics. Behavior counts exclude the study panel. session_type: human = real participants, simulated = generated from assumed rates (test data), agent = bots using the real dashboard with one fixed strategy for v1 and v2. Only human is real users.';
 COMMENT ON COLUMN workspace.ux_telemetry.gold_trial_metrics.outcome IS
   'Objective result: correct, incorrect, abandoned (clicked I give up), or no_outcome (left without finishing). Success = correct.';
 COMMENT ON COLUMN workspace.ux_telemetry.gold_trial_metrics.satisfaction IS

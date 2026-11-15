@@ -21,6 +21,7 @@
   .tag.simulated { color:var(--sim); background:var(--simbg); }
   .tag.human { color:var(--human); background:var(--humanbg); }
   .tag.other { color:var(--muted); background:#eef0f1; }
+  .tag.agent { color:#5b3a99; background:#efe8fb; }
   .note { border-left:3px solid var(--sim); background:var(--simbg); padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:16px; }
   .err { border-left:3px solid var(--bad); background:#fbe9e7; padding:8px 12px; border-radius:4px; font-size:13px; margin-bottom:16px; white-space:pre-wrap; }
   .scroll { overflow-x:auto; }
@@ -54,7 +55,9 @@
 <main>
   <div class="note"><b>How to read this.</b> Rows labeled <span class="tag simulated">simulated</span> come from a bot whose
     behavior encodes our hypotheses about the planted flaws: they show the pipeline recovers those effects, not that real
-    users have them. <span class="tag human">human</span> rows are real sessions. Samples are small: every rate shows its
+    users have them. <span class="tag agent">agent</span> rows are bots running the real dashboard in a browser with one
+    fixed strategy for both versions, so differences come from the designs, not from rates we chose; they are still
+    not people. <span class="tag human">human</span> rows are real sessions. Samples are small: every rate shows its
     <i>n</i>, and none of these differences are tested for significance.</div>
   <div id="status" class="muted">Loading results from the SQL warehouse&hellip; (a stopped warehouse can take a minute to start)</div>
   <div id="out"></div>
@@ -64,8 +67,8 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const pct = (x) => (x == null ? '–' : Math.round(x * 100) + '%');
-  const tagFor = (st) => `<span class="tag ${st === 'human' || st === 'simulated' ? st : 'other'}">${esc(st)}</span>`;
-  const ORDER = { human: 0, simulated: 2 };
+  const tagFor = (st) => `<span class="tag ${['human', 'simulated', 'agent'].includes(st) ? st : 'other'}">${esc(st)}</span>`;
+  const ORDER = { human: 0, agent: 1, simulated: 2 };
   const byType = (a, b) => (ORDER[a] ?? 1) - (ORDER[b] ?? 1) || String(a).localeCompare(String(b));
 
   function pairBars(r1, r2, n1, n2) {
