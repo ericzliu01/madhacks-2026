@@ -169,8 +169,8 @@ class Bot {
   // hover a point and read its value from the tooltip. Unified tooltips list "Name : value" for every series;
   // single-series tooltips read "Name | (date, value)" and may show a neighbouring line when lines overlap, so the
   // bot nudges the pointer up and down until the tooltip names the series it wants.
-  async valueAt(line, idx, name) {
-    const [x, y] = line.pts[idx];
+  async valueAt(line, idx, name, day) {
+    const [x, y] = day === undefined ? line.pts[idx] : this.pointForDay(line, day);
     for (const [dx, dy] of [[0, 0], [0, -3], [0, 3], [3, 0], [-3, 0], [0, -6], [0, 6], [3, -3], [3, 3], [0, -9], [0, 9]]) {
       await this.p.mouse.move(x + dx, y + dy, { steps: 2 }); await sleep(220);
       const tip = await this.ev(() => window.__agent.tooltip());
@@ -179,6 +179,18 @@ class Bot {
       if (tip.startsWith(name)) { const m = tip.match(/,\s*([\d,.]+)\)\s*$/); if (m) return +m[1].replace(/,/g, ''); }
     }
     return NaN;
+  }
+  // Plotly simplifies line paths (drops collinear points), so the n-th path point is NOT the n-th day. Dates come from
+  // x position between the first and last points (always kept: March 1 and March 30), like reading the x axis.
+  dayOfX(line, x) { const x0 = line.pts[0][0], x1 = line.pts[line.pts.length - 1][0]; return Math.round((x - x0) / (x1 - x0) * 29); }
+  dateAt(line, i) { return dateOf(this.dayOfX(line, line.pts[i][0])); }
+  pointForDay(line, d) {  // the point on the drawn line at day d (interpolated between the surrounding path points)
+    const x0 = line.pts[0][0], x1 = line.pts[line.pts.length - 1][0], x = x0 + (x1 - x0) * d / 29;
+    for (let k = 1; k < line.pts.length; k++) {
+      const [ax, ay] = line.pts[k - 1], [bx, by] = line.pts[k];
+      if (x <= bx + 0.5) return [x, ay + (by - ay) * (bx === ax ? 0 : (x - ax) / (bx - ax))];
+    }
+    return line.pts[line.pts.length - 1];
   }
   minIndex(line) { let b = 0; line.pts.forEach(([, y], i) => { if (y > line.pts[b][1]) b = i; }); return b; }
   maxIndex(line) { let b = 0; line.pts.forEach(([, y], i) => { if (y < line.pts[b][1]) b = i; }); return b; }
@@ -220,11 +232,11 @@ async function runTasks(bot, v) {
   };
   const giveUp = async () => { await p.click('#task-giveup'); await sleep(400); };
   // T1 Brooklyn on 2026-03-15: find the line, read the tooltip at day 15
-  { const line = await bot.findLine('Brooklyn'); await finish(await bot.valueAt(line, 14, 'Brooklyn'), 4); }
+  { const line = await bot.findLine('Brooklyn'); await finish(await bot.valueAt(line, null, 'Brooklyn', 14), 4); }
   // T2 percent Brooklyn over Queens from the bar chart
   await finish(await bot.pctFromBars(), 4);
   // T3 Queens' lowest day: lowest point of the Queens line
-  { const line = await bot.findLine('Queens'); await finish(dateOf(bot.minIndex(line)), 4); }
+  { const line = await bot.findLine('Queens'); await finish(bot.dateAt(line, bot.minIndex(line)), 4); }
   // T4 filter to Bronx, read the Avg fare KPI
   if (await bot.filterTo('Bronx')) await finish(await bot.kpiFare(), 4); else await giveUp();
   // T5 Manhattan range: hover its highest and lowest points
@@ -269,14 +281,14 @@ async function runGoals(bot, v) {
     const reply = await bot.ask('Which day did Queens have the fewest trips?');
     const d = reply && reply.match(/2026-\d\d-\d\d/);
     if (d) { await bot.acceptLast(); await submit(d[0], 4); } else await giveUp();
-  } else { const line = await bot.findLine('Queens'); await submit(dateOf(bot.minIndex(line)), 3); }
+  } else { const line = await bot.findLine('Queens'); await submit(bot.dateAt(line, bot.minIndex(line)), 3); }
 
   // G4 the odd Bronx day: isolate the Bronx, click its lowest point, ask why
   let line, filtered = await bot.filterTo('Bronx');
   line = filtered ? (await bot.ev(() => window.__agent.lines('#line')))[0] : await bot.findLine('Bronx');
   const i = bot.minIndex(line), [x, y] = line.pts[i];
   await p.mouse.move(x, y, { steps: 3 }); await sleep(200); await p.mouse.click(x, y); await sleep(300);
-  const day = dateOf(i);
+  const day = bot.dateAt(line, i);
   if (chat) {
     let reply = await bot.ask('Why did this drop?');
     if (reply && !reply.includes(day)) reply = await bot.ask(`why is the Bronx so low on ${day}?`);  // ignored my selection
