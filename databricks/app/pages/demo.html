@@ -121,35 +121,28 @@
 
   const STEPS = [
     { t: 0, d: 20, title: 'The problem',
-      say: 'Dashboards fail people silently: a filter nobody finds, a chart you can\'t read exactly. Analytics tells you <i>that</i> people leave, not <i>why</i>.',
       stage: [{ label: 'Dashboard v1', src: dash(1) }] },
     { t: 20, d: 40, title: 'Capture',
-      say: 'Our SDK records clicks, hovers and chart interactions, never what you type. Events land in a Unity Catalog Volume.',
       do: ['Hover the <b>Daily trips</b> line: no tooltip in v1.', 'Click the <b>Avg fare</b> card three times: looks clickable, does nothing.',
            'Open the <b>&hellip;</b> menu: the borough filter hides there.', 'Switch to <b>/status</b>: the written count goes up.'],
       stage: [{ label: 'Dashboard v1', src: dash(1) }, { label: '/status', src: '/status' }] },
     { t: 60, d: 40, title: 'Raw to gold',
-      say: 'Raw JSONL in the Volume, bronze, silver, gold. One SQL file rebuilds it. Every metric is defined in the table comments. Human, agent and simulated data never mix.',
       do: ['Catalog Explorer: Volume <code>raw_events</code>, then <code>silver_goals</code>, then <code>gold_element_friction</code>.', 'Point at a column comment.'],
       links: [['Catalog: ux_telemetry', 'catalog'], ['Volume: raw_events', 'volume'], ['SQL editor', 'sql']],
       stage: [{ label: 'Catalog Explorer', ext: 'catalog' }, { label: '/status', src: '/status' }] },
     { t: 100, d: 40, title: 'Genie',
-      say: 'Anyone can ask the gold tables in plain English. Before curation Genie invented a weighted score; with instructions and example SQL it passes 10 of 10 benchmarks.',
       questions: [['Which element gets the most rage clicks in v1?', 'benchmarked'], ['What do users rage-click?', 'benchmarked'],
                   ['For human sessions on v1, which goal had the lowest success rate?', 'not benchmarked: rehearse first'],
                   ['For human sessions on v1, which element has the most dead clicks?', 'not benchmarked: rehearse first']],
       links: [['Genie space', 'genie']],
       stage: [{ label: 'Genie', ext: 'genie' }] },
     { t: 140, d: 50, title: 'AI designer + sign-off',
-      say: 'Six real people used v1. Databricks\' <code>ai_gen</code> saw only their gold rows: no flaw list, no v2. Unprompted, it proposed <b>tooltips on the line chart</b> and <b>an easier borough filter</b> (G2: 0 of 6 correct). Every citation is checked in code; one of six failed. A UX developer approved two and rejected three, each with a reason.',
       do: ['Scroll to <b>ai-gen-loop1</b>: show P1 and P5 approved, P2 rejected with its reason.', 'Point at a cited number and its <i>n</i>.'],
       stage: [{ label: 'Proposals', src: '/results#proposals' }] },
     { t: 190, d: 40, title: 'Re-test',
-      say: 'v3 is v1 plus only the two approved changes. Bots with one fixed strategy use the real UI, same for both. G3 (line chart) went from 2/15 to 15/15. G1 stayed 0/15: the truncated axis was never proposed, so it was never fixed. Bots find hidden menus, so G2 needs people. Bots are not people.',
       do: ['Hover the line in v3: tooltip appears.', 'Point at the inline Borough filter.', 'Open the agent goals table on /results.'],
       stage: [{ label: 'v1 | v3 side by side', pair: [dash(1), dash(3)] }, { label: 'Agent goals', src: '/results#st-agent' }, { label: 'Human goals', src: '/results#st-human' }] },
     { t: 230, d: 10, title: 'Close',
-      say: 'Capture, Databricks medallion, Genie, an AI designer with checks and human sign-off, and a re-test. All on Free Edition.',
       stage: [{ label: 'Results', src: '/results' }] }
   ];
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -166,7 +159,6 @@
   function renderNotes() {
     const s = STEPS[cur];
     let h = `<h2>${esc(s.title)}</h2><div class="meta">${fmt(s.t)}&ndash;${fmt(s.t + s.d)} &middot; ${s.d} s</div>`;
-    h += `<h3>Say</h3><p class="say">${s.say}</p>`;
     if (s.do) h += `<h3>Do</h3><ol>${s.do.map((x) => `<li>${x}</li>`).join('')}</ol>`;
     if (s.questions) h += `<h3>Ask Genie</h3>` + s.questions.map(([q, note], i) =>
       `<div class="q"><button data-copy="${i}" title="Copy">Copy</button><span>${esc(q)}<br><small>${esc(note)}</small></span></div>`).join('');
