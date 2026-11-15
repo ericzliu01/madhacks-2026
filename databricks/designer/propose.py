@@ -82,9 +82,22 @@ TABLES = {  # table -> (key columns, n columns)
 
 
 # ------------------------------------------------------------------------------------------------- evidence pack
-def elements():
+# What evidence designers see.
+#   loop: the redesign loop. Only REAL participants on the CURRENT design (human, v1); no version comparison (there is
+#         no v2 yet: it is built from the approved proposals) and no assistant tables (the assistant is switched off,
+#         so "never opened the chat" would be an artifact). Simulated/agent rows encode our own hypotheses: left out.
+#   all:  every gold row, both versions and all session types (the earlier comparison set-up; also used by tests).
+SCOPES = {
+    "loop": {"session_types": {"human"}, "app_version": "v1", "chat": False,
+             "tables": ["gold_goal_summary", "gold_element_friction", "gold_task_summary"]},
+    "all": {"session_types": None, "app_version": None, "chat": True, "tables": None},
+}
+SCOPE = "loop"
+
+
+def elements(chat=True):
     ids = sorted(set(re.findall(r'data-ux-id="([^"]+)"', INDEX_HTML.read_text())))
-    return [i for i in ids if not CHROME.match(i)]
+    return [i for i in ids if not CHROME.match(i) and (chat or not i.startswith("chat-"))]
 
 
 def verified_literature():
@@ -125,18 +138,26 @@ def evidence_id(table, row):
     return "|".join([table] + [str(row[k]) for k in keys if row.get(k) is not None])
 
 
-def build_pack(rows, source):
+def build_pack(rows, source, scope=None):
+    sc = SCOPES[scope or SCOPE]
     evidence = []
     for table, (keys, ns) in TABLES.items():
-        for r in rows[table]:
+        if sc["tables"] is not None and table not in sc["tables"]:
+            continue
+        for r in rows.get(table) or []:
+            if sc["session_types"] is not None and r.get("session_type") not in sc["session_types"]:
+                continue
+            if sc["app_version"] is not None and "app_version" in r and r.get("app_version") != sc["app_version"]:
+                continue
             evidence.append({"id": evidence_id(table, r), "table": table, "session_type": r.get("session_type"),
                              "keys": {k: r.get(k) for k in keys if k != "session_type"},
                              "n": {k: r[k] for k in ns if r.get(k) is not None},
                              "metrics": {k: v for k, v in r.items()
                                          if k not in keys and k not in ns and isinstance(v, (int, float)) and v is not None}})
     return {"generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "source": source,
-            "evidence": evidence, "elements": elements(), "element_notes": {e: ELEMENT_NOTES.get(e, "") for e in elements()},
-            "assistant_answer_types": BEHAVIORS,
+            "scope": scope or SCOPE, "evidence": evidence, "elements": elements(sc["chat"]),
+            "element_notes": {e: ELEMENT_NOTES.get(e, "") for e in elements(sc["chat"])},
+            "assistant_answer_types": BEHAVIORS if sc["chat"] else {},
             "literature_verified": verified_literature()}
 
 
@@ -170,16 +191,15 @@ SCHEMA = {
     "additionalProperties": False,
 }
 
-SYSTEM = """You are the UX designer on a usability study of a small analytics dashboard ("Taxi Ops") that also has a chat
-assistant. You propose concrete changes to the current design (v1), each backed by evidence from the study's gold tables.
+SYSTEM = """You are the UX designer on a usability study of a small analytics dashboard ("Taxi Ops"){chat_clause}. You propose concrete changes to the current design (v1), each backed by evidence from the study's gold tables.
 
 Rules:
 - Cite only evidence rows from the pack, by id. For each citation give the metric name exactly as it appears in that
   row's `metrics`, the value as given, and one of that row's `n` fields with its value. A change with no valid citation
   will be discarded.
-- Target exactly one dashboard element (one of `elements`, by its data-ux-id) or one assistant behavior (B1-B5).
+- Target exactly one dashboard element (one of `elements`, by its data-ux-id){behavior_rule}.
 - Describe the change concretely enough to build: what the element looks like or does after the change.
-- Prefer v1-vs-v2 differences and rates with their n over single values. Do not claim statistical significance.
+- {evidence_rule} Do not claim statistical significance.
 - session_type 'simulated' rows come from bots whose behavior encodes the study's own hypotheses: they show a measurable
   pattern, not that real people behave this way. Say so in the rationale when you rely on them. Prefer human rows when
   they exist, and say when n is tiny.
@@ -198,7 +218,7 @@ def call_claude(pack):
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",  # server-side fallback if the request is declined by a safety classifier
         output_config={"effort": "high", "format": {"type": "json_schema", "schema": SCHEMA}},
-        system=SYSTEM,
+        system=system_prompt(pack.get("scope")),
         messages=[{"role": "user", "content": "Evidence pack (JSON):\n" + json.dumps(pack)}],
     )
     if response.stop_reason == "refusal":
@@ -209,9 +229,21 @@ def call_claude(pack):
     return json.loads(text), response.model, response._request_id
 
 
+def system_prompt(scope=None):
+    sc = SCOPES[scope or SCOPE]
+    return SYSTEM.format(
+        chat_clause=" that also has a chat assistant" if sc["chat"] else "",
+        behavior_rule=" or one assistant behavior (B1-B5)" if sc["chat"] else "",
+        evidence_rule=("All evidence comes from real participants on the current design (v1); there is no other version "
+                       "to compare with. Use rates and counts with their n, and say when n is tiny."
+                       if sc["app_version"] == "v1" else
+                       "Prefer v1-vs-v2 differences and rates with their n over single values."))
+
+
 # ------------------------------------------------------------------------------------------------- validation
 CHAT_TABLES = {"gold_bot_behavior", "gold_goal_summary"}
-TASK_TABLES = {"gold_version_comparison", "gold_task_summary", "gold_element_friction"}
+# goals are worked on the page (charts, filter) as well as with the assistant, so goal rows can support either kind
+TASK_TABLES = {"gold_version_comparison", "gold_task_summary", "gold_element_friction", "gold_goal_summary"}
 
 
 def relevance_problem(change, row):
@@ -287,7 +319,9 @@ def cmd_evidence(a):
         missing = [t for t in TABLES if t not in rows]
         if missing:
             raise SystemExit(f"{a.rows} lacks tables {missing}")
-    pack = build_pack(rows, label)
+    pack = build_pack(rows, label, a.scope)
+    if not pack["evidence"]:
+        print(f"warning: no evidence rows in scope {a.scope!r} (local data is simulated: use --scope all to test)")
     OUT.mkdir(exist_ok=True)
     (OUT / "evidence.json").write_text(json.dumps(pack, indent=1))
     by = {}
@@ -336,7 +370,8 @@ def cmd_draft(a, call=call_claude):
     if a.from_ai_gen:  # the row written by 08_ai_design_proposals.sql: {draft_json, evidence_json, generated_at}
         row = json.loads(Path(a.from_ai_gen).read_text())
         rows = json.loads(row["evidence_json"])
-        pack = build_pack({t: rows.get(t) or [] for t in TABLES}, f"gold tables as of {row.get('generated_at')} (snapshot stored with the draft)")
+        pack = build_pack({t: rows.get(t) or [] for t in TABLES},
+                          f"gold tables as of {row.get('generated_at')} (snapshot stored with the draft)", row.get("scope"))
         try:
             draft = parse_draft(row["draft_json"])
         except (ValueError, json.JSONDecodeError) as ex:
@@ -367,11 +402,11 @@ def ai_gen_prompt():
     lit = "literature_verified is empty: leave literature empty." if not verified_literature() else \
         "literature_verified: " + json.dumps([r["bib_key"] for r in verified_literature()])
     return "\n".join([
-        SYSTEM, "",
+        system_prompt(), "",
         "Reply with ONLY one JSON object, no prose and no code fence, in exactly this shape:", fmt, "",
-        "elements (data-ux-id): " + ", ".join(elements()),
-        "element notes: " + json.dumps({e: ELEMENT_NOTES.get(e, "") for e in elements()}),
-        "assistant answer types (behavior targets): " + json.dumps(BEHAVIORS),
+        "elements (data-ux-id): " + ", ".join(elements(SCOPES[SCOPE]["chat"])),
+        "element notes: " + json.dumps({e: ELEMENT_NOTES.get(e, "") for e in elements(SCOPES[SCOPE]["chat"])}),
+        *(["assistant answer types (behavior targets): " + json.dumps(BEHAVIORS)] if SCOPES[SCOPE]["chat"] else []),
         lit, "",
         "Evidence rows grouped by table. Each row has an id (cite it as evidence_id); the n fields are the columns "
         "starting with n_. Rows:",
@@ -381,16 +416,28 @@ def ai_gen_prompt():
 def sql_08():
     def lit(text):  # Spark string literal: no single quotes, newlines as \n
         return "'" + text.replace("'", "\u2019").replace("\n", "\\n") + "'"
+    sc = SCOPES[SCOPE]
     parts = []
     for table, (keys, _) in TABLES.items():
+        if sc["tables"] is not None and table not in sc["tables"]:
+            continue
+        conds = []
+        if sc["session_types"] is not None:
+            conds.append("session_type IN (" + ", ".join(f"'{t}'" for t in sorted(sc["session_types"])) + ")")
+        if sc["app_version"] is not None and "app_version" in keys:
+            conds.append(f"app_version = '{sc['app_version']}'")
+        where = (" WHERE " + " AND ".join(conds)) if conds else ""
         idexpr = "concat_ws('|', '" + table + "', " + ", ".join(keys) + ")"
         parts.append(f"    '{table}', (SELECT collect_list(struct(*)) FROM (SELECT {idexpr} AS id, * "
-                     f"FROM ${{catalog}}.${{schema}}.{table}))")
+                     f"FROM ${{catalog}}.${{schema}}.{table}{where}))")
+    sc_note = ("real participants on v1 only; no version comparison, no assistant tables" if SCOPE == "loop"
+               else "all gold rows, both versions, all session types")
     return f"""-- GENERATED by databricks/designer/propose.py sql. Do not edit by hand: change the rules in propose.py.
 -- AI DESIGNER inside Databricks: ai_gen drafts UI change proposals from the gold tables. Spark/Databricks SQL only.
 -- ai_gen uses a model chosen and managed by Databricks (not selectable, not necessarily Claude) and has no output-format
 -- enforcement. The raw reply and the exact evidence it saw are stored together; propose.py draft --from-ai-gen checks
 -- every citation against that snapshot (value, n, element) and only then shows changes, as pending, for sign-off.
+-- Evidence scope: {SCOPE} ({sc_note}).
 -- Run after ux_pipeline_all.sql. Calls a model once per run.
 CREATE OR REPLACE TABLE ${{catalog}}.${{schema}}.gold_design_proposals_raw AS
 WITH ev AS (
@@ -400,6 +447,7 @@ WITH ev AS (
 )
 SELECT current_timestamp() AS generated_at,
        'ai_gen' AS designer,
+       '{SCOPE}' AS scope,
        evidence_json,
        ai_gen(concat({lit(ai_gen_prompt())}, ' ', evidence_json)) AS draft_json
 FROM ev;
@@ -431,6 +479,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("evidence")
     e.add_argument("--source", choices=["local", "warehouse", "json"], default="local")
+    e.add_argument("--scope", choices=list(SCOPES), default=SCOPE, help="loop: human v1 only (default); all: everything")
     e.add_argument("--rows", help="with --source json: file of {table: [row, ...]}")
     e.add_argument("--warehouse-id")
     e.add_argument("--schema", default="workspace.ux_telemetry")

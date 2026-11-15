@@ -14,7 +14,7 @@ def check(name, ok): results.append(ok); print("PASS" if ok else "FAIL", name)
 
 tmp = Path(tempfile.mkdtemp())
 propose.OUT, propose.PROPOSALS_DIR = tmp / "out", tmp / "proposals"
-propose.main(["evidence", "--source", "local"])
+propose.main(["evidence", "--source", "local", "--scope", "all"])
 pack = json.loads((propose.OUT / "evidence.json").read_text())
 check("pack has simulated evidence from all five gold tables",
       {e["table"] for e in pack["evidence"]} == set(propose.TABLES) and all(e["session_type"] for e in pack["evidence"]))
@@ -67,7 +67,7 @@ check("--from-file: valid change kept, bad one rejected, designer recorded",
 # --from-ai-gen: the SQL row (reply may be fenced) + the evidence snapshot it saw, rows carrying SQL-built ids
 rows = propose.rows_local()
 snapshot = {t: [dict(r, id=propose.evidence_id(t, r)) for r in rs] for t, rs in rows.items()}
-row = {"generated_at": "2026-11-15T12:00:00Z", "evidence_json": json.dumps(snapshot),
+row = {"generated_at": "2026-11-15T12:00:00Z", "evidence_json": json.dumps(snapshot), "scope": "all",
        "draft_json": "```json\n" + json.dumps({"summary": "s", "changes": [good, wrong_value]}) + "\n```"}
 (tmp / "row.json").write_text(json.dumps(row))
 propose.main(["draft", "--from-ai-gen", str(tmp / "row.json")])
@@ -100,5 +100,24 @@ blob = json.dumps(pack) + propose.ai_gen_prompt()
 check("designer inputs contain no planted-flaw descriptions",
       not any(desc in blob for desc in propose.FLAWS.values()) and "planted" not in propose.ai_gen_prompt().lower()
       and "tooltip" not in blob.lower() and "truncat" not in blob.lower())
+
+# loop scope: real participants on v1 only, no version comparison, no assistant tables or targets
+mixed = {t: list(rs) for t, rs in rows.items()}
+mixed["gold_goal_summary"] = mixed["gold_goal_summary"] + [dict(r, session_type="human") for r in rows["gold_goal_summary"]]
+lp = propose.build_pack(mixed, "test", "loop")
+check("loop scope: only human v1 rows from goal/friction/task tables",
+      lp["evidence"] and all(e["session_type"] == "human" and e["keys"].get("app_version") == "v1" for e in lp["evidence"])
+      and {e["table"] for e in lp["evidence"]} <= {"gold_goal_summary", "gold_element_friction", "gold_task_summary"})
+check("loop scope: no assistant elements or behaviors offered",
+      not any(x.startswith("chat-") for x in lp["elements"]) and lp["assistant_answer_types"] == {})
+g1 = next(e for e in lp["evidence"] if e["keys"]["goal_id"] == "G1")
+beh = dict(good, title="behavior in loop", target_kind="behavior", target="B1",
+           evidence=[{"evidence_id": g1["id"], "metric": "success_rate", "value": g1["metrics"]["success_rate"], "n_field": "n_goals", "n": g1["n"]["n_goals"]}])
+page = dict(good, title="page fix from goal evidence", target="filter-borough", evidence=beh["evidence"])
+ok, rej = propose.validate({"changes": [beh, page]}, lp)
+check("loop scope: behavior targets rejected, goal evidence valid for a page element",
+      [c["title"] for c in ok] == ["page fix from goal evidence"] and rej[0]["title"] == "behavior in loop")
+check("loop prompt says v1-only and real participants, no assistant", "no other version" in propose.system_prompt("loop")
+      and "assistant" not in propose.system_prompt("loop").split("Rules:")[0])
 
 sys.exit(0 if all(results) else 1)

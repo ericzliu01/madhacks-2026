@@ -69,7 +69,12 @@ for line in human_src.read_text().splitlines():
         hrows.append([dict(e, t=e["t"] + 1, region="input:Your answer").get(c) for c in cols])
 db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", hrows)
 n += len(hrows)
-print(f"loaded {n} bronze events from {sessions} (+1 session relabelled human)")
+# an excluded session: copy of a simulated session under a new id, listed in excluded_sessions -> must not reach silver
+db.executemany(f"INSERT INTO bronze_events ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
+               [r[:cols.index('sid')] + ["excluded-check"] + r[cols.index('sid') + 1:] for r in hrows[:5]])
+db.execute("INSERT INTO excluded_sessions VALUES ('excluded-check', 'test: must be skipped')")
+n += 5
+print(f"loaded {n} bronze events from {sessions} (+1 session relabelled human, +1 excluded)")
 
 for name in ("02_silver.sql", "03_gold.sql", "06_silver_chat.sql", "07_gold_chat.sql"):
     for stmt in prep((SQL / name).read_text()):
@@ -87,9 +92,10 @@ human = q("SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE session_type =
 sim_n = q(f"SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE {SIM}")[0]["n"]
 
 checks = [
-    ("silver dedupes nothing it shouldn't (events == bronze)", count("silver_events") == count("bronze_events")),
+    ("silver dedupes nothing it shouldn't (events == bronze minus excluded)", count("silver_events") == count("bronze_events") - 5),
     ("one trial per session x task (60 simulated + 2 human sessions x 5)", count("silver_trials") == 310),
     ("gold keeps human trials apart from simulated (5 vs 300)", human == 5 and sim_n == 300),
+    ("sessions in excluded_sessions never reach silver", q("SELECT COUNT(*) AS c FROM silver_events WHERE session_id = 'excluded-check'")[0]["c"] == 0),
     ("earlier-design human sessions become human_r1, never pooled with revision 2",
      q("SELECT SUM(n_trials) AS n FROM gold_task_summary WHERE session_type = 'human_r1'")[0]["n"] == 5),
     ("F4: top v1 rage element is kpi-avg-fare", friction and friction[0]["uxid"] == "kpi-avg-fare" and friction[0]["n_rage_clicks"] > 0),

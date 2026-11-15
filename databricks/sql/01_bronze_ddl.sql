@@ -21,3 +21,9 @@ CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.bronze_events (
   mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN, goal_sim DOUBLE, pasted BOOLEAN,
   _source_file STRING, _ingested_at TIMESTAMP
 );
+
+-- Sessions to leave out of analysis (restarts, spot checks, test runs). Silver skips every session listed here.
+-- Add rows by hand with a reason, e.g. INSERT INTO ... VALUES ('<sid>', 'restart: incomplete');
+CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.excluded_sessions (
+  session_id STRING, reason STRING
+);
