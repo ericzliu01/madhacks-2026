@@ -8,11 +8,11 @@ SDK / extension  ->  JSONL  ->  Volume (raw)  ->  bronze  ->  silver  ->  gold  
 
 | File | Layer | Where it runs |
 |---|---|---|
-| `sql/00_setup.sql` | schema + Volume | Databricks (untested) |
-| `sql/01_bronze_ddl.sql` | bronze table, explicit schema | Databricks + local SQLite test |
-| `sql/01b_bronze_load.sql` | `COPY INTO` from the Volume | Databricks only (untested) |
-| `sql/02_silver.sql` | typed, de-duplicated events; reconstructed trials | Databricks + local test |
-| `sql/03_gold.sql` | trial metrics, task summary, element friction, v1-v2 comparison | Databricks + local test |
+| `sql/00_setup.sql` | schema + Volume | Databricks (ran OK on Free Edition) |
+| `sql/01_bronze_ddl.sql` | bronze table, explicit schema | Databricks (ran OK) + local SQLite test |
+| `sql/01b_bronze_load.sql` | `COPY INTO` from the Volume (explicit columns, DOUBLE casts) | Databricks only (ran OK, 4087 rows) |
+| `sql/02_silver.sql` | typed, de-duplicated events; reconstructed trials | Databricks (ran OK) + local test |
+| `sql/03_gold.sql` | trial metrics, task summary, element friction, v1-v2 comparison | Databricks (ran OK) + local test |
 | `sql/04_ai_prompt_intent.sql` | LLM labels for prompts (task x intent) + human-agreement check | Databricks only (untested) |
 | `sql/05_comments.sql` | Unity Catalog comments with the research definitions | Databricks only (untested) |
 | `genie/GENIE_SPACE.md` | how to curate the Genie space (instructions, example SQL, benchmarks) | manual in the UI |
@@ -36,6 +36,8 @@ python3 databricks/tests/run_sql_local.py
 ## Honest limits
 - The local test uses **simulated** sessions whose behavior encodes our hypotheses about the planted flaws. It proves the
   pipeline can recover what was planted. It says nothing about real users.
-- Spark-only files have not been run: the sandbox has no workspace access, no Databricks CLI, and no PySpark.
-  Expect small syntax fixes on first run.
+- 00-03 and 05 were run on a Free Edition workspace with the simulated sessions (bronze 4087, silver trials 300; v1 vs v2
+  matched the local run). That run was reported to us, not performed by us: the sandbox has no workspace access.
+  Fix needed on first run: `COPY INTO` failed with DELTA_FAILED_TO_MERGE_FIELDS because JSON inference types whole numbers as
+  BIGINT, so 01b casts the DOUBLE columns explicitly. `04` (AI functions) has not been run.
 - Silver assumes each task is attempted once per session.
