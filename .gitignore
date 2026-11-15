@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 events.jsonl
 *.log
 .DS_Store

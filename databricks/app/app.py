@@ -3,6 +3,7 @@
 
   GET  /...        static/ (dashboard, scenarios.json, data.json, SDK files)
   POST /events     JSON array of events -> buffered -> one JSONL file per flush in the Volume
+  POST /chat       stub assistant (chatbot.py, synced from demo/dashboard): planted behaviors B1-B5, prompt not stored
   GET  /healthz    "ok"
   GET  /status     sink, counts, last upload error
   GET  /results    v1 vs v2 results page (pages/results.html), data from GET /api/results
@@ -24,7 +25,11 @@ import threading
 import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # chatbot.py sits next to this file (also under python -I)
+import chatbot  # noqa: E402
 
 HERE = Path(__file__).parent
 MAX_BODY = 1_000_000
@@ -190,6 +195,8 @@ def load_proposals(path):
 class Handler(SimpleHTTPRequestHandler):
     collector = None
     gold = None
+    bot = None
+    latency_scale = 1.0
     proposals_path = HERE / "proposals" / "latest.json"
 
     def send_json(self, obj, code=200):
@@ -212,7 +219,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_json(out)
 
     def do_POST(self):
-        if self.path != "/events":
+        if self.path not in ("/events", "/chat"):
             self.send_error(404)
             return
         length = int(self.headers.get("content-length") or 0)
@@ -224,6 +231,14 @@ class Handler(SimpleHTTPRequestHandler):
         except ValueError:
             self.send_error(400, "invalid json")
             return
+        if self.path == "/chat":
+            if self.bot is None:
+                Handler.bot = chatbot.Bot.load(self.directory)
+            try:
+                return self.send_json(chatbot.chat_reply(self.bot, batch, self.latency_scale))
+            except ValueError as ex:
+                self.send_error(400, str(ex))
+                return
         if not isinstance(batch, list):
             self.send_error(400, "expected a JSON array")
             return
@@ -285,6 +300,7 @@ if __name__ == "__main__":
     host = "0.0.0.0" if os.environ.get("DATABRICKS_APP_PORT") else "127.0.0.1"
     sink = build_sink()
     col = Collector(sink, float(os.environ.get("FLUSH_SECS", 3)), int(os.environ.get("FLUSH_EVENTS", 200)))
+    Handler.latency_scale = float(os.environ.get("CHAT_LATENCY_SCALE", 1.0))
     col.start()
     gold = build_gold()
     srv = make_server(col, host, port, gold=gold)

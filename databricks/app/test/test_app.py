@@ -107,4 +107,24 @@ page = urllib.request.urlopen(f"http://127.0.0.1:{port}/results").read().decode(
 check("/results serves the results page", "/api/results" in page and "simulated" in page)
 srv.shutdown()
 
+# 5. POST /chat: stub assistant with planted behaviors (data.json from the built static folder)
+import chatbot
+app.Handler.bot = chatbot.Bot.load(Path(app.__file__).parent / "static")
+app.Handler.latency_scale = 0
+col = app.Collector(app.LocalSink(tmp / "out3"), flush_secs=60)
+srv, port = serve(col, static)
+def chat(body):
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/chat", data=json.dumps(body).encode(), method="POST")
+    return json.loads(urllib.request.urlopen(req).read())
+q = "By what percentage did Brooklyn have more trips than Queens?"
+r1, r2 = chat({"prompt": q, "v": 1}), chat({"prompt": q, "v": 2})
+check("/chat B1: v1 wrong, v2 correct", r1["behavior"] == "B1" and r1["correct"] is False and r2["correct"] is True)
+sel = {"series": "Bronx", "x": "2026-03-24"}
+check("/chat B5: v1 ignores the selection, v2 uses it",
+      chat({"prompt": "why did this drop?", "v": 1, "selection": sel})["correct"] is False
+      and chat({"prompt": "why did this drop?", "v": 2, "selection": sel})["value"] == "2026-03-24")
+check("/chat does not record the prompt as an event", col.written == 0 and not col.buf)
+check("/chat rejects non-object body", post(port, b"[1]", "/chat") == 400)
+srv.shutdown()
+
 sys.exit(0 if all(results) else 1)

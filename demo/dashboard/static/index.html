@@ -31,6 +31,33 @@
   #study .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   #study .sat button { width:34px; }
   #study small { color:var(--muted); }
+  #study .ans-row { display:flex; gap:6px; } #study .ans-row input { flex:1; min-width:0; }
+  #study label.consent { display:flex; gap:8px; align-items:flex-start; font-size:13px; margin:10px 0; }
+
+  /* ---------------- chat assistant (bottom-left, as in BI tools) */
+  #chat { position:fixed; left:16px; bottom:16px; width:350px; max-width:calc(100vw - 32px); height:400px; max-height:calc(100vh - 90px);
+          display:flex; flex-direction:column; background:#fff; border:1px solid var(--line); border-radius:10px;
+          box-shadow:0 8px 24px rgba(0,0,0,.14); z-index:20; }
+  #chat header { padding:8px 10px; border-bottom:1px solid var(--line); border-radius:10px 10px 0 0; }
+  #chat header h2 { font-size:14px; margin:0; }
+  #chat-log { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+  .msg { max-width:88%; padding:7px 10px; border-radius:10px; line-height:1.4; font-size:13px; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#fff; }
+  .msg.bot { align-self:flex-start; background:#f0f2f3; }
+  .msg.sys { align-self:center; background:none; color:var(--muted); font-size:12px; }
+  .msg .acts { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+  .msg .acts button { font-size:11px; padding:2px 7px; border:1px solid var(--line); background:#fff; border-radius:5px; cursor:pointer; }
+  .msg.typing { color:var(--muted); font-style:italic; }
+  #chat-sel { margin:0 10px 6px; font-size:12px; background:#e8f1fa; color:#1b4f7a; border-radius:6px; padding:3px 8px; display:flex; justify-content:space-between; align-items:center; }
+  #chat-sel button { border:0; background:none; cursor:pointer; color:inherit; padding:0 2px; }
+  #chat-form { display:flex; gap:6px; padding:8px 10px; border-top:1px solid var(--line); }
+  #chat-form input { flex:1; min-width:0; }
+  /* PLANTED BEHAVIOR B4 (v1): the only way into the assistant is a small, unlabeled, low-contrast icon. */
+  #chat-launch { position:fixed; left:16px; bottom:16px; z-index:20; }
+  body.v1 #chat-launch { width:28px; height:28px; border-radius:50%; border:1px solid #e3e6e8; background:#f4f5f6; color:#c3cacd; font-size:13px; padding:0; cursor:pointer; }
+  body.v2 #chat-launch { border-radius:20px; border:0; background:var(--accent); color:#fff; padding:9px 16px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.18); }
+  body.v2.chat-on main { padding-bottom:420px; }
+  body.tasks #chat, body.tasks #chat-launch { display:none !important; }
 </style>
 </head>
 <body>
@@ -81,7 +108,50 @@
     </div>
     <div id="step-done" hidden>All tasks complete. Thank you!</div>
   </aside>
+  <aside id="goals" class="card" data-ux-region="study-panel" hidden>
+    <div id="g-intro">
+      <h2>Welcome</h2>
+      <div class="q">You'll get 5 goals from colleagues at Taxi Ops. Use the dashboard and its assistant however you like,
+        then give your final answer. Answers can be wrong; please answer as you would at work.</div>
+      <label class="consent"><input type="checkbox" id="g-consent" data-ux-id="consent-text">
+        <span>Record the text of my questions to the assistant. <small>(Unchecked: only their length and a one-way hash are kept.)</small></span></label>
+      <button id="g-start" data-ux-id="goal-start">Start</button>
+    </div>
+    <div id="g-work" hidden>
+      <h2>Goal <span id="g-n"></span></h2>
+      <div class="q" id="g-q"></div>
+      <div class="ans-row"><input type="text" id="g-answer" data-ux-id="goal-answer" aria-label="Your final answer" placeholder="Your final answer"></div>
+      <div class="btns">
+        <button id="g-submit" data-ux-id="goal-submit" data-ux-action="submit">Submit answer</button>
+        <button id="g-giveup" data-ux-id="goal-giveup" data-ux-action="giveup">I give up</button>
+      </div>
+    </div>
+    <div id="g-sat" hidden>
+      <div>How satisfied are you with your answer? <small>(1 = not at all, 5 = very)</small></div>
+      <div class="btns sat">
+        <button data-ux-id="gsat-1" data-sat="1">1</button><button data-ux-id="gsat-2" data-sat="2">2</button>
+        <button data-ux-id="gsat-3" data-sat="3">3</button><button data-ux-id="gsat-4" data-sat="4">4</button>
+        <button data-ux-id="gsat-5" data-sat="5">5</button>
+      </div>
+    </div>
+    <div id="g-done" hidden>All goals complete. Thank you!</div>
+  </aside>
 </main>
+
+<button id="chat-launch" data-ux-id="chat-launcher" aria-label="Assistant" hidden>&#8943;</button>
+<section id="chat" data-ux-region="chat-panel" hidden>
+  <header class="chat-head" style="display:flex;justify-content:space-between;align-items:center">
+    <h2>Taxi Ops assistant</h2>
+    <button id="chat-min" data-ux-id="chat-minimize" aria-label="Minimize assistant" title="Minimize">&minus;</button>
+  </header>
+  <div id="chat-log" aria-live="polite"></div>
+  <div id="chat-sel" hidden><span id="chat-sel-t"></span><button id="chat-sel-x" data-ux-id="chat-selection-clear" aria-label="Clear selection">&times;</button></div>
+  <!-- not a <form>: Enter in a form also fires a synthetic click on the submit button (double prompt_submit) -->
+  <div id="chat-form" data-ux-prompt>
+    <input type="text" id="chat-input" data-ux-id="chat-input" aria-label="Ask the assistant" placeholder="Ask about trips or fares" autocomplete="off">
+    <button type="button" id="chat-send" data-ux-id="chat-send" data-ux-action="send">Send</button>
+  </div>
+</section>
 
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script src="uxtelemetry.js"></script>
@@ -103,13 +173,18 @@
   const V = sticky('v', () => (Math.random() < 0.5 ? '1' : '2')) === '2' ? 2 : 1;  // 1 = planted flaws, 2 = fixed; random split if unset
   const STUDY = qs.get('study') !== '0';            // study mode is the default; ?study=0 shows the bare dashboard
   const PID = sticky('pid', () => 'P-' + Math.random().toString(36).slice(2, 8).toUpperCase());
+  // goals (default): open-ended goals worked on with the chat assistant. tasks: the original scripted task panel.
+  const MODE = qs.get('mode') === 'tasks' ? 'tasks' : 'goals';
   document.body.classList.add('v' + V);
   if (STUDY) document.body.classList.add('study');
+  document.body.classList.add(MODE);
+  if (STUDY && MODE === 'goals') { document.getElementById('study').hidden = true; document.getElementById('goals').hidden = false; }
   document.getElementById('ver').textContent = '(design v' + V + ')';
 
-  const [data, scenarios] = await Promise.all([
+  const [data, scenarios, goals] = await Promise.all([
     fetch('data.json').then(r => r.json()),
-    fetch('scenarios.json').then(r => r.json())
+    fetch('scenarios.json').then(r => r.json()),
+    fetch('goals.json').then(r => r.json())
   ]);
   const names = Object.keys(data.boroughs);
 
@@ -120,7 +195,8 @@
     consent: true,                                  // explicit opt-in is required by the SDK
     sessionType: qs.get('st') || 'human',
     participantId: PID,
-    salt: 'taxi-ops-demo'
+    salt: 'taxi-ops-demo',
+    promptMeta: (text, at) => chatMeta(text, at)    // content-free: token overlap with the previous prompt of the goal
   });
   rec.setPage('dashboard_v' + V);
 
@@ -197,8 +273,187 @@
   // PLANTED FLAW F4: in v1 the Avg-fare card looks clickable (pointer + hover ring) but does nothing.
   if (V === 2) document.querySelector('.kpi.fake-link').classList.remove('fake-link');
 
-  // ---------------------------------------------------------------- study runner (outcome capture)
-  if (!STUDY) return;
+  // ---------------------------------------------------------------- chat assistant (stub with planted behaviors B1-B5)
+  // Same content-token rule as chatbot.tokens() / overlap() in Python: lowercase alphanumerics minus stopwords,
+  // overlap coefficient |A and B| / min(|A|,|B|). Only the number is logged, never the text (unless consented).
+  const STOP = new Set(('a an the of in on for to and or is are was were be been what which who how much many did do does ' +
+    'was me my i you your it its this that these those there their please can could would should tell show give find ' +
+    'get about with by from at as than then so any all').split(' '));
+  const toks = t => new Set((String(t).toLowerCase().match(/[a-z0-9]+/g) || []).filter(w => !STOP.has(w)));
+  function overlap(a, b) {
+    const A = toks(a), B = toks(b);
+    if (!A.size || !B.size) return 0;
+    let n = 0; A.forEach(w => { if (B.has(w)) n++; });
+    return Math.round(1000 * n / Math.min(A.size, B.size)) / 1000;
+  }
+  let prevPrompt = { goal: undefined, text: null };
+  function chatMeta(text, at) {
+    const same = prevPrompt.goal === at.goal && prevPrompt.text !== null;
+    const ov = same ? overlap(text, prevPrompt.text) : null;
+    prevPrompt = { goal: at.goal, text };
+    return { overlap: ov, sel: !!selection };
+  }
+
+  const $c = id => document.getElementById(id);
+  const chatEl = $c('chat'), launch = $c('chat-launch'), log = $c('chat-log'), input = $c('chat-input');
+  let selection = null;              // {series, x, y} of the last clicked point on the Daily trips chart
+  let goalTurn = 1, prevIntents = [], current = null;
+  const answers = [];                // assistant answers of the current goal: {turn, value, answer_id, correct}
+
+  function openChat(how) {
+    chatEl.hidden = false; launch.hidden = true; document.body.classList.add('chat-on');
+    rec.emit('chat_open', { how });
+    log.scrollTop = log.scrollHeight;
+  }
+  function closeChat() {
+    chatEl.hidden = true; launch.hidden = false; document.body.classList.remove('chat-on');
+    rec.emit('chat_close', {});
+  }
+  if (MODE !== 'tasks') {
+    launch.addEventListener('click', () => openChat('click'));
+    $c('chat-min').addEventListener('click', closeChat);
+    // PLANTED BEHAVIOR B4: v1 starts collapsed behind the unlabeled icon; v2 starts open (and minimizes to a labeled button)
+    if (V === 2) { launch.textContent = 'Ask the assistant'; launch.setAttribute('aria-label', 'Ask the assistant'); openChat('auto'); }
+    else launch.hidden = false;
+  }
+
+  function addMsg(kind, text) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + kind; d.textContent = text;
+    log.appendChild(d); log.scrollTop = log.scrollHeight;
+    return d;
+  }
+  function feedback(kind, r, at) {
+    rec.emit('answer_feedback', { goal: at.goal, turn: at.turn, feedback: kind, answer_id: r.answer_id });
+  }
+  function addBotMsg(r, at) {
+    const d = addMsg('bot', r.text);
+    const acts = document.createElement('div'); acts.className = 'acts';
+    const btn = (label, uxid, action, fn) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+      b.setAttribute('data-ux-id', uxid); if (action) b.setAttribute('data-ux-action', action);
+      b.addEventListener('click', fn); acts.appendChild(b);
+    };
+    if (r.value != null && current && at.goal === current.id) {
+      btn('Use as answer', 'chat-accept', 'accept', () => { $c('g-answer').value = r.value; feedback('accept', r, at); });
+    }
+    btn('Copy', 'chat-copy', 'copy', () => {
+      try { navigator.clipboard.writeText(r.text).catch(() => {}); } catch (e) { /* clipboard unavailable */ }
+      feedback('copy', r, at);
+    });
+    btn('\u{1F44D}', 'chat-thumbs-up', 'feedback', () => feedback('thumbs_up', r, at));
+    btn('\u{1F44E}', 'chat-thumbs-down', 'feedback', () => feedback('thumbs_down', r, at));
+    d.appendChild(acts);
+  }
+
+  async function send() {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    // the SDK has already recorded prompt_submit (capture phase) with the current goal/turn; advance the turn now
+    const at = { goal: current ? current.id : null, turn: current ? goalTurn : null };
+    if (current) { goalTurn++; rec.setTurn(goalTurn); }
+    const sel = selection, intents = current ? prevIntents.slice() : [];
+    addMsg('user', text);
+    const typing = V === 2 ? addMsg('bot typing', 'Assistant is working\u2026') : null;  // B3: v1 shows nothing
+    const t0 = performance.now();
+    let r;
+    try {
+      r = await fetch('/chat', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: text, v: V, selection: sel ? { series: sel.series, x: sel.x } : null, prev_intents: intents }) })
+        .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); });
+    } catch (e) {
+      if (typing) typing.remove();
+      addMsg('sys', 'The assistant is unavailable right now.');
+      rec.emit('assistant_response', { goal: at.goal, turn: at.turn, latency_ms: Math.round(performance.now() - t0), answer_id: 'error', intent: 'error' });
+      return;
+    }
+    if (typing) typing.remove();
+    if (current && at.goal === current.id) { prevIntents.push(r.intent); answers.push({ turn: at.turn, value: r.value, answer_id: r.answer_id }); }
+    addBotMsg(r, at);
+    rec.emit('assistant_response', {
+      goal: at.goal, turn: at.turn, latency_ms: Math.round(performance.now() - t0),
+      behavior: r.behavior, answer_id: r.answer_id, correct: r.correct, intent: r.intent,
+      answer: r.value == null ? undefined : String(r.value),           // testbed ground truth, not participant data
+      mark_x: sel ? sel.x : undefined, mark_y: sel ? sel.y : undefined, series: sel ? sel.series : undefined
+    });
+  }
+  $c('chat-send').addEventListener('click', send);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
+
+  // chart -> chat: clicking a point on the Daily trips chart selects it for the assistant (B5)
+  function setSelection(sel) {
+    selection = sel;
+    $c('chat-sel').hidden = !sel;
+    if (sel) $c('chat-sel-t').textContent = 'Selected: ' + sel.series + ' \u00b7 ' + sel.x + ' (' + Number(sel.y).toLocaleString() + ' trips)';
+  }
+  $c('chat-sel-x').addEventListener('click', () => setSelection(null));
+  const lineDiv = document.getElementById('line');
+  lineDiv.on('plotly_click', ev => {
+    const pts = (ev && ev.points) || [];
+    if (!pts.length) return;
+    let p = pts[0];  // with unified hover (v2) every series is returned: pick the one nearest the pointer
+    const cy = ev.event && ev.event.clientY;
+    if (cy != null && pts.length > 1) {
+      const top = lineDiv.getBoundingClientRect().top;
+      const py = q => q.yaxis._offset + q.yaxis.l2p(q.y) + top;
+      p = pts.reduce((best, q) => (Math.abs(py(q) - cy) < Math.abs(py(best) - cy) ? q : best), pts[0]);
+    }
+    setSelection({ series: p.data.name, x: p.x, y: p.y });
+    rec.emit('selection', { chart: 'line-daily-trips', series: p.data.name, mark_x: String(p.x), mark_y: Number(p.y) });
+  });
+
+  // ---------------------------------------------------------------- goals runner (mode=goals)
+  const $g = id => document.getElementById(id);
+  const gshow = step => ['g-intro', 'g-work', 'g-sat', 'g-done'].forEach(s => { $g(s).hidden = s !== step; });
+  let gidx = -1, gPending = null;
+  function normDate(a) {
+    const m = String(a).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    return m ? m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') : String(a).trim().toLowerCase();
+  }
+  const num = a => parseFloat(String(a).replace(/[,%$\s]/g, ''));
+  function same(g, a, b) {
+    if (g.type === 'number') { const x = num(a), y = num(b); return Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) <= 1e-6; }
+    return normDate(a) === normDate(b);
+  }
+  function goalCorrect(g, a) {
+    if (g.type === 'number') { const n = num(a); return Number.isFinite(n) && Math.abs(n - g.answer) <= g.tolerance; }
+    return normDate(a) === normDate(g.answer);
+  }
+  function nextGoal() {
+    gidx++;
+    if (gidx >= goals.length) { current = null; rec.setGoal(null); gshow('g-done'); rec.mark('study_done'); rec.flush(); return; }
+    current = goals[gidx]; goalTurn = 1; prevIntents = []; answers.length = 0;
+    setSelection(null);
+    $g('g-n').textContent = (gidx + 1) + ' / ' + goals.length;
+    $g('g-q').textContent = current.prompt;
+    $g('g-answer').value = '';
+    gshow('g-work');
+    borough = 'All'; ['borough-inline', 'borough-menu'].forEach(id => { $g(id).value = 'All'; });
+    more.hidden = true; renderKpis(); renderLine();
+    if (!chatEl.hidden || V === 1) addMsg('sys', '\u2014 Goal ' + (gidx + 1) + ' \u2014');
+    rec.setGoal(current.id, { categories: current.categories, prompt: current.prompt });
+  }
+  if (STUDY && MODE === 'goals') {
+    $g('g-start').addEventListener('click', () => { rec.setCaptureText($g('g-consent').checked); nextGoal(); });
+    $g('g-submit').addEventListener('click', () => {
+      const a = $g('g-answer').value;
+      if (!a.trim()) return;
+      // which assistant answer (if any) was submitted: the latest turn whose value equals the final answer
+      const src = answers.slice().reverse().find(x => x.value != null && same(current, x.value, a));
+      gPending = { status: goalCorrect(current, a) ? 'correct' : 'incorrect', answer: a, turn: src ? src.turn : null, answerId: src ? src.answer_id : undefined };
+      gshow('g-sat');
+    });
+    $g('g-giveup').addEventListener('click', () => { rec.goalOutcome({ status: 'abandoned' }); nextGoal(); });
+    document.querySelectorAll('#g-sat button').forEach(b => b.addEventListener('click', () => {
+      rec.goalOutcome(Object.assign({}, gPending, { satisfaction: Number(b.dataset.sat) }));
+      nextGoal();
+    }));
+    gshow('g-intro');
+  }
+
+  // ---------------------------------------------------------------- task runner (mode=tasks, outcome capture)
+  if (!STUDY || MODE !== 'tasks') return;
   let idx = -1, pendingStatus = null, pendingAnswer = null;
   const $ = id => document.getElementById(id);
   const show = step => ['step-answer', 'step-sat', 'step-done'].forEach(s => { $(s).hidden = s !== step; });

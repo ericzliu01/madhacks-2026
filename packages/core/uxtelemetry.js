@@ -13,6 +13,9 @@
  *   data-ux-region="kpi-row"       named region for hover dwell / scroll
  *   data-ux-action="send"          semantic action for clicks (send, run, accept, ...)
  *   data-ux-prompt                 marks an AI prompt input
+ *
+ * Study structure: a task (setTask/outcome) is one scripted question; a goal (setGoal/goalOutcome) is an open-ended
+ * need worked on with an assistant over several turns (setTurn). Both are stamped on every event while active.
  */
 (function (root) {
   'use strict';
@@ -59,12 +62,16 @@
     const PROMPT_HINT = H.promptHint || /assistant|genie|ask|chat|message|prompt/i;
     const ACTION_RULES = H.actionRules || DEFAULT_ACTION_RULES;
     const classifyPage = H.classifyPage || function () { return 'other'; };
+    // Optional page hook: extra, content-free fields for prompt_submit (e.g. token overlap with the previous prompt).
+    // Called synchronously at submit with (text, {goal, turn}); must not return the text itself.
+    const promptMeta = options.promptMeta || null;
 
-    let S = options.settings || null; // {enabled, sessionId, sessionType, taskId, taskCategory, participantId, appId, captureText, salt}
+    let S = options.settings || null; // {enabled, sessionId, sessionType, taskId, taskCategory, goalId, goalCats, turnId, participantId, appId, captureText, salt}
     let started = false;
     let pageKind = classifyPage(location.pathname);
     let lastRoute = location.pathname + location.hash;
     let taskStartWall = null;
+    let goalStartWall = null;
     const buf = [];
     const disposers = [];
 
@@ -90,6 +97,9 @@
             task: S.taskId || null,
             tcat: S.taskCategory || null,
             pid: S.participantId || null,
+            goal: S.goalId || null,
+            gcats: S.goalCats || null,
+            turn: S.turnId == null ? null : S.turnId,
             page: pageKind,
             path: location.pathname, // never the query string
             type: type
@@ -266,14 +276,21 @@
       if (!text) return;
       const t = Date.now();
       const settings = S;
+      // goal/turn are read now: the page may advance the turn before the hash resolves
+      const at = { goal: (settings && settings.goalId) || null, turn: settings && settings.turnId != null ? settings.turnId : null };
+      let extra = {};
+      if (promptMeta) { try { extra = promptMeta(text, at) || {}; } catch (_) { extra = {}; } }
+      delete extra.text;
       saltedHash(text).then(function (hash) {
-        emitAt(t, 'prompt_submit', {
+        emitAt(t, 'prompt_submit', Object.assign({}, extra, {
+          goal: at.goal,
+          turn: at.turn,
           how: how,
           chars: text.length,
           words: text.split(/\s+/).length,
           hash: hash,
           text: settings && settings.captureText ? text : undefined
-        });
+        }));
       });
     }
 
@@ -433,6 +450,36 @@
       flush();
     }
 
+    // Goal = open-ended need worked on with an assistant. meta: {categories: [...Amar tasks], prompt}. Turn ids restart at 1.
+    function setGoal(goalId, meta) {
+      meta = meta || {};
+      S = Object.assign({}, S, { goalId: goalId || null, goalCats: (meta.categories || []).join('|') || null, turnId: goalId ? 1 : null });
+      goalStartWall = goalId ? Date.now() : null;
+      if (goalId) emit('goal_start', { prompt: meta.prompt === undefined ? undefined : String(meta.prompt).slice(0, 200) });
+    }
+    function setTurn(n) { S = Object.assign({}, S, { turnId: n == null ? null : n }); }
+
+    // Outcome of a goal: status 'correct' | 'incorrect' | 'abandoned'; satisfaction 1-5; answer: the final answer;
+    // turn: the assistant turn whose answer the participant submitted (null if they typed their own).
+    function goalOutcome(o) {
+      o = o || {};
+      emit('goal_outcome', {
+        status: o.status || 'unknown',
+        satisfaction: o.satisfaction === undefined ? null : o.satisfaction,
+        answer: o.answer === undefined ? undefined : String(o.answer).slice(0, 200),
+        turn: o.turn === undefined ? null : o.turn,
+        answer_id: o.answerId === undefined ? undefined : o.answerId,
+        dur: goalStartWall ? Date.now() - goalStartWall : null
+      });
+      flush();
+    }
+
+    // Consent for prompt text can be given (or withdrawn) during the session; recorded as a 'consent' event.
+    function setCaptureText(on) {
+      S = Object.assign({}, S, { captureText: on === true });
+      emit('consent', { state: on === true ? 'prompt_text' : 'no_prompt_text' });
+    }
+
     function setPage(name) { pageKind = name; }
     function mark(name, data) { emit('custom', Object.assign({ name: name }, data)); }
 
@@ -452,6 +499,7 @@
     const api = {
       start: start, stop: stop, update: update, flush: flush,
       emit: emit, mark: mark, setTask: setTask, outcome: outcome, setPage: setPage,
+      setGoal: setGoal, setTurn: setTurn, goalOutcome: goalOutcome, setCaptureText: setCaptureText,
       settings: function () { return S; }
     };
     return api;
@@ -484,7 +532,7 @@
       salt: opts.salt || opts.appId || ''
     };
     const sink = opts.sink || (opts.endpoint ? httpSink(opts.endpoint) : function () {});
-    const rec = create({ sink: sink, settings: null, heuristics: opts.heuristics, cfg: opts.cfg });
+    const rec = create({ sink: sink, settings: null, heuristics: opts.heuristics, cfg: opts.cfg, promptMeta: opts.promptMeta });
     rec.start();
     rec.update(settings); // emits session_start when enabled
     return rec;
@@ -501,5 +549,5 @@
     };
   }
 
-  root.UXTelemetry = { create: create, init: init, adapters: {}, version: '0.2.0' };
+  root.UXTelemetry = { create: create, init: init, adapters: {}, version: '0.3.0' };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

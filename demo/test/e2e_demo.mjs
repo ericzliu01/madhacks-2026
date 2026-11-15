@@ -20,7 +20,7 @@ async function runBot(v) {
   const out = path.join(tmp, 'events.jsonl');
   const before = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').split('\n').filter(Boolean).length : 0;
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  await page.goto(`http://127.0.0.1:${PORT}/?study=1&pid=P0${v}&st=agent&v=${v}`);
+  await page.goto(`http://127.0.0.1:${PORT}/?study=1&mode=tasks&pid=P0${v}&st=agent&v=${v}`);
   await page.waitForSelector('#task-q:not(:has-text("Loading"))');
   await page.waitForSelector('#bar .bars .point');
   await page.waitForTimeout(400);

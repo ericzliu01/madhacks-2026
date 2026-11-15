@@ -27,7 +27,7 @@
   "id": "T4",
   "category": "filter",
   "prompt": "Filter the dashboard to the Bronx only. What is the Avg fare shown in the KPI card? (number)",
-  "answer": 21.76,
+  "answer": 21.75,
   "tolerance": 0.05,
   "type": "number"
  },

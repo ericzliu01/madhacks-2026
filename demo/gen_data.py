@@ -3,7 +3,9 @@
 
 Deterministic (seeded). Outputs, relative to demo/dashboard/static/:
   data.json       daily trips and average fare per borough for 30 days
-  scenarios.json  chart-reading tasks tagged with an Amar/Eagan/Stasko category and a known answer
+  scenarios.json  chart-reading tasks (mode=tasks) tagged with an Amar/Eagan/Stasko category and a known answer
+  goals.json      goals for the chat-assistant study (mode=goals), each tagged with the Amar categories it is expected
+                  to exercise, the planted bot behavior it exposes, and a ground-truth answer computed here
 
 Brooklyn and Queens totals are deliberately close, so a truncated bar-chart axis (planted flaw F1)
 makes the gap look much bigger than it is.
@@ -42,6 +44,28 @@ q = data["boroughs"]["Queens"]["trips"]
 q_min_i = 17
 q[q_min_i] = int(min(q) * 0.7)
 
+# Hidden anomaly for the exploration goal (G4): one Bronx weekday collapses to a quarter of its usual level.
+# The Bronx line is the lowest and, in v1, the lowest-contrast series, so this is easy to miss without filtering.
+BRONX_ANOMALY_I = 23
+b = data["boroughs"]["Bronx"]["trips"]
+b[BRONX_ANOMALY_I] = int(round(b[BRONX_ANOMALY_I] * 0.25))
+
+
+def is_weekend(i):
+    return (START + timedelta(days=i)).weekday() >= 5
+
+
+def ratio_to_usual(name, i):
+    """Trips on day i divided by the mean of the same borough's other days of the same kind (weekday/weekend)."""
+    t = data["boroughs"][name]["trips"]
+    peers = [t[j] for j in range(DAYS) if j != i and is_weekend(j) == is_weekend(i)]
+    return t[i] / (sum(peers) / len(peers))
+
+
+bronx_ratios = sorted((ratio_to_usual("Bronx", i), i) for i in range(DAYS))
+anomaly_ratio, anomaly_i = bronx_ratios[0]
+assert anomaly_i == BRONX_ANOMALY_I and bronx_ratios[1][0] - anomaly_ratio > 0.4, bronx_ratios[:3]  # unambiguous
+
 totals = {n: sum(v["trips"]) for n, v in data["boroughs"].items()}
 avg_fare = {
     n: round(sum(t * f for t, f in zip(v["trips"], v["fare"])) / sum(v["trips"]), 2)
@@ -79,10 +103,50 @@ scenarios = [
     },
 ]
 
+# Goals for the chat study: a goal states what the analyst needs, not which chart to read. `behavior` names the planted
+# assistant behavior the goal is designed to expose (see demo/dashboard/chatbot.py); G5 is a control with none.
+# B4 (hard-to-find chat entry point) affects every goal, so it is not tied to one.
+q_min_date = dates[min(range(DAYS), key=lambda i: q[i])]
+assert q_min_date == dates[q_min_i]
+goals = [
+    {
+        "id": "G1", "categories": ["compute_derived_value", "retrieve_value"], "behavior": "B1",
+        "prompt": "Your manager thinks Brooklyn had far more trips than Queens in March. By what percentage did "
+                  "Brooklyn's total trips exceed Queens' total? (number, in %)",
+        "answer": pct_gap, "tolerance": 2.0, "type": "number",
+    },
+    {
+        "id": "G2", "categories": ["filter", "compute_derived_value"], "behavior": "B2",
+        "prompt": "Finance needs the average fare for Bronx trips in March. What was it? (number, in $)",
+        "answer": avg_fare["Bronx"], "tolerance": 0.05, "type": "number",
+    },
+    {
+        "id": "G3", "categories": ["find_extremum", "filter"], "behavior": "B3",
+        "prompt": "Operations wants to plan around the quietest day. On which date did Queens have its fewest trips? "
+                  "(YYYY-MM-DD)",
+        "answer": q_min_date, "tolerance": 0, "type": "date",
+    },
+    {
+        "id": "G4", "categories": ["find_anomalies", "filter", "retrieve_value"], "behavior": "B5",
+        "prompt": "The Bronx operations lead says one day in March looked wrong in their numbers. Find that day and "
+                  "check why it stands out. Which date was it? (YYYY-MM-DD)",
+        "answer": dates[anomaly_i], "tolerance": 0, "type": "date",
+        "detail": {"borough": "Bronx", "trips": b[anomaly_i], "ratio_to_usual": round(anomaly_ratio, 3)},
+    },
+    {
+        "id": "G5", "categories": ["determine_range"], "behavior": None,
+        "prompt": "How much did Manhattan's daily trips vary over March: highest day minus lowest day? (number)",
+        "answer": max(manhattan) - min(manhattan), "tolerance": 150, "type": "number",
+    },
+]
+
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "data.json").write_text(json.dumps(data))
 (OUT / "scenarios.json").write_text(json.dumps(scenarios, indent=1))
+(OUT / "goals.json").write_text(json.dumps(goals, indent=1))
 print("totals", totals, "| brooklyn vs queens gap %", pct_gap)
 print("avg fare", avg_fare)
-for s in scenarios:
-    print(s["id"], s["category"], "->", s["answer"])
+for s in scenarios + goals:
+    print(s["id"], s.get("category") or "+".join(s["categories"]), "->", s["answer"])
+print("Bronx anomaly", dates[anomaly_i], b[anomaly_i], "trips, ratio to usual", round(anomaly_ratio, 3),
+      "| next lowest ratio", round(bronx_ratios[1][0], 3))
