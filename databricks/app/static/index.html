@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taxi Ops Dashboard (demo customer UI)</title>
+<style>
+  :root { --ink:#1b3139; --muted:#5a6f77; --line:#dce0e2; --bg:#f9f7f4; --accent:#2272b4; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  main { display:grid; grid-template-columns: 1fr 320px; gap:16px; padding:16px 20px; }
+  body:not(.study) main { grid-template-columns: 1fr; }
+  body:not(.study) #study { display:none; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .kpis { display:flex; gap:12px; margin-bottom:12px; }
+  .kpi { flex:1; }
+  .kpi .v { font-size:26px; font-weight:700; }
+  .kpi .l { color:var(--muted); font-size:12px; }
+  /* PLANTED FLAW F4 (v1 only): a non-interactive KPI card styled as if it were clickable */
+  body.v1 .kpi.fake-link { cursor:pointer; }
+  body.v1 .kpi.fake-link:hover { box-shadow:0 0 0 2px var(--accent); }
+  .row { display:grid; grid-template-columns: 1fr 1.6fr; gap:12px; }
+  .toolbar { position:relative; display:flex; gap:8px; align-items:center; }
+  button, select, input[type=text] { font:inherit; padding:5px 9px; }
+  #more-panel { position:absolute; right:0; top:34px; z-index:5; background:#fff; border:1px solid var(--line); border-radius:6px; padding:10px; box-shadow:0 4px 12px rgba(0,0,0,.12); min-width:200px; }
+  [hidden] { display:none !important; }
+  #study h2 { font-size:14px; margin:0 0 8px; }
+  #study .q { margin:6px 0 10px; line-height:1.4; }
+  #study .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  #study .sat button { width:34px; }
+  #study small { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Taxi Ops &mdash; March 2026 <small id="ver" style="color:var(--muted);font-weight:400"></small></h1>
+  <div class="toolbar" data-ux-region="toolbar">
+    <span id="filter-inline" hidden>
+      <label for="borough-inline">Borough</label>
+      <select id="borough-inline" data-ux-id="filter-borough"></select>
+    </span>
+    <button id="menu-more" data-ux-id="menu-more" aria-label="More options" title="More options">&#8943;</button>
+    <div id="more-panel" hidden data-ux-region="more-menu">
+      <label for="borough-menu">Borough</label><br>
+      <select id="borough-menu" data-ux-id="filter-borough"></select>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="kpis" data-ux-region="kpi-row">
+      <div class="card kpi" data-ux-id="kpi-total-trips"><div class="v" id="kpi-trips">-</div><div class="l">Total trips</div></div>
+      <div class="card kpi fake-link" data-ux-id="kpi-avg-fare"><div class="v" id="kpi-fare">-</div><div class="l">Avg fare ($)</div></div>
+    </div>
+    <div class="row">
+      <div class="card" data-ux-region="chart-bar"><div id="bar" data-ux-id="chart-bar"></div></div>
+      <div class="card" data-ux-region="chart-line"><div id="line" data-ux-id="chart-line"></div></div>
+    </div>
+  </section>
+
+  <aside id="study" class="card" data-ux-region="study-panel">
+    <h2>Task <span id="task-n"></span></h2>
+    <div class="q" id="task-q">Loading&hellip;</div>
+    <div id="step-answer">
+      <input type="text" id="task-answer" data-ux-id="task-answer" aria-label="Your answer" placeholder="Your answer" style="width:100%">
+      <div class="btns">
+        <button id="task-submit" data-ux-id="task-submit" data-ux-action="submit">Submit</button>
+        <button id="task-giveup" data-ux-id="task-giveup" data-ux-action="giveup">I give up</button>
+      </div>
+    </div>
+    <div id="step-sat" hidden>
+      <div>How satisfied are you with this result? <small>(1 = not at all, 5 = very)</small></div>
+      <div class="btns sat">
+        <button data-ux-id="sat-1" data-sat="1">1</button><button data-ux-id="sat-2" data-sat="2">2</button>
+        <button data-ux-id="sat-3" data-sat="3">3</button><button data-ux-id="sat-4" data-sat="4">4</button>
+        <button data-ux-id="sat-5" data-sat="5">5</button>
+      </div>
+    </div>
+    <div id="step-done" hidden>All tasks complete. Thank you!</div>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="uxtelemetry.js"></script>
+<script src="plotly-adapter.js"></script>
+<script>
+(async function () {
+  const qs = new URLSearchParams(location.search);
+  const V = qs.get('v') === '2' ? 2 : 1;           // 1 = planted flaws, 2 = fixed
+  const STUDY = qs.get('study') === '1';
+  document.body.classList.add('v' + V);
+  if (STUDY) document.body.classList.add('study');
+  document.getElementById('ver').textContent = '(design v' + V + ')';
+
+  const [data, scenarios] = await Promise.all([
+    fetch('data.json').then(r => r.json()),
+    fetch('scenarios.json').then(r => r.json())
+  ]);
+  const names = Object.keys(data.boroughs);
+
+  // ---------------------------------------------------------------- telemetry (SDK)
+  const rec = UXTelemetry.init({
+    endpoint: '/events',
+    appId: 'taxi-ops-demo-v' + V,
+    consent: true,                                  // explicit opt-in is required by the SDK
+    sessionType: qs.get('st') || 'human',
+    participantId: qs.get('pid') || '',
+    salt: 'taxi-ops-demo'
+  });
+  rec.setPage('dashboard_v' + V);
+
+  // ---------------------------------------------------------------- state + KPIs
+  let borough = 'All';
+  const sel = n => n === 'All' ? names : [n];
+  const sum = a => a.reduce((x, y) => x + y, 0);
+
+  function renderKpis() {
+    const bs = sel(borough);
+    const trips = sum(bs.map(b => sum(data.boroughs[b].trips)));
+    const fare = sum(bs.map(b => data.boroughs[b].trips.reduce((s, t, i) => s + t * data.boroughs[b].fare[i], 0))) / trips;
+    document.getElementById('kpi-trips').textContent = trips.toLocaleString();
+    document.getElementById('kpi-fare').textContent = fare.toFixed(2);
+  }
+
+  // ---------------------------------------------------------------- charts (flaws live here)
+  const totals = names.map(n => sum(data.boroughs[n].trips));
+  function renderBar() {
+    const lo = Math.min(...totals), hi = Math.max(...totals);
+    const layout = {
+      title: { text: 'Total trips by borough', font: { size: 14 } },
+      height: 330, margin: { t: 40, l: 55, r: 10, b: 40 },
+      // PLANTED FLAW F1 (v1): y-axis truncated just below the smallest value, exaggerating differences.
+      yaxis: V === 1 ? { range: [lo * 0.9, hi * 1.02] } : { range: [0, hi * 1.12] }
+    };
+    const trace = { type: 'bar', x: names, y: totals, marker: { color: '#2272b4' } };
+    if (V === 2) { trace.text = totals.map(t => t.toLocaleString()); trace.textposition = 'outside'; }
+    Plotly.newPlot('bar', [trace], layout, { displayModeBar: false });
+  }
+
+  // PLANTED FLAW F2 (v1): four near-identical muted colors + tiny, pale legend.
+  const V1_COLORS = ['#8aa1b8', '#8fa8bf', '#94adc6', '#99b2cb'];
+  const V2_COLORS = ['#0072B2', '#D55E00', '#009E73', '#CC79A7'];
+  function renderLine() {
+    const traces = sel(borough).map((n) => ({
+      type: 'scatter', mode: 'lines', name: n, x: data.dates, y: data.boroughs[n].trips,
+      line: { color: (V === 1 ? V1_COLORS : V2_COLORS)[names.indexOf(n)], width: 2 }
+    }));
+    const layout = {
+      title: { text: 'Daily trips', font: { size: 14 } }, height: 330, margin: { t: 40, l: 55, r: 10, b: 60 },
+      legend: V === 1 ? { font: { size: 8, color: '#cfcfcf' }, orientation: 'h', y: -0.3 }
+                      : { font: { size: 13, color: '#1b3139' }, orientation: 'h', y: -0.25 },
+      hovermode: V === 1 ? 'closest' : 'x unified'
+    };
+    Plotly.react('line', traces, layout, { displayModeBar: false });
+  }
+
+  renderBar(); renderLine(); renderKpis();
+  const detachers = [
+    UXTelemetry.adapters.plotly(rec, document.getElementById('bar'), { chartId: 'bar-total-trips' }),
+    UXTelemetry.adapters.plotly(rec, document.getElementById('line'), { chartId: 'line-daily-trips' })
+  ];
+
+  // ---------------------------------------------------------------- filter control (flaw F3)
+  ['borough-inline', 'borough-menu'].forEach(id => {
+    const s = document.getElementById(id);
+    ['All', ...names].forEach(n => s.add(new Option(n, n)));
+    s.addEventListener('change', e => {
+      borough = e.target.value;
+      document.getElementById('borough-inline').value = borough;
+      document.getElementById('borough-menu').value = borough;
+      rec.mark('filter_change', { control: 'borough', value: borough });
+      renderKpis(); renderLine();
+    });
+  });
+  // PLANTED FLAW F3 (v1): the filter is only reachable via the "..." menu; v2 shows it inline.
+  if (V === 2) document.getElementById('filter-inline').hidden = false;
+  const more = document.getElementById('more-panel');
+  const moreBtn = document.getElementById('menu-more');
+  if (V === 2) moreBtn.hidden = true;
+  moreBtn.addEventListener('click', () => { more.hidden = !more.hidden; });
+
+  // PLANTED FLAW F4: in v1 the Avg-fare card looks clickable (pointer + hover ring) but does nothing.
+  if (V === 2) document.querySelector('.kpi.fake-link').classList.remove('fake-link');
+
+  // ---------------------------------------------------------------- study runner (outcome capture)
+  if (!STUDY) return;
+  let idx = -1, pendingStatus = null, pendingAnswer = null;
+  const $ = id => document.getElementById(id);
+  const show = step => ['step-answer', 'step-sat', 'step-done'].forEach(s => { $(s).hidden = s !== step; });
+
+  function nextTask() {
+    idx++;
+    if (idx >= scenarios.length) { $('task-n').textContent = ''; $('task-q').textContent = ''; show('step-done'); rec.mark('study_done'); rec.flush(); return; }
+    const t = scenarios[idx];
+    $('task-n').textContent = (idx + 1) + ' / ' + scenarios.length;
+    $('task-q').textContent = t.prompt;
+    $('task-answer').value = '';
+    show('step-answer');
+    // reset view state so every trial starts from the same screen
+    borough = 'All'; ['borough-inline', 'borough-menu'].forEach(id => { $(id).value = 'All'; });
+    more.hidden = true; renderKpis(); renderLine();
+    rec.setTask(t.id, { category: t.category, prompt: t.prompt });
+  }
+  function isCorrect(t, raw) {
+    const a = String(raw).trim();
+    if (t.type === 'number') { const n = parseFloat(a.replace(/[,%$\s]/g, '')); return Number.isFinite(n) && Math.abs(n - t.answer) <= t.tolerance; }
+    return a.toLowerCase() === String(t.answer).toLowerCase();
+  }
+  $('task-submit').addEventListener('click', () => {
+    pendingAnswer = $('task-answer').value;
+    if (!pendingAnswer.trim()) return;
+    pendingStatus = isCorrect(scenarios[idx], pendingAnswer) ? 'correct' : 'incorrect';
+    show('step-sat');
+  });
+  $('task-giveup').addEventListener('click', () => {
+    rec.outcome({ status: 'abandoned' });
+    nextTask();
+  });
+  document.querySelectorAll('#step-sat button').forEach(b => b.addEventListener('click', () => {
+    rec.outcome({ status: pendingStatus, satisfaction: Number(b.dataset.sat), answer: pendingAnswer });
+    nextTask();
+  }));
+  nextTask();
+  addEventListener('pagehide', () => detachers.forEach(d => d && d()));
+})();
+</script>
+</body>
+</html>
