@@ -7,6 +7,7 @@
   GET  /healthz    "ok"
   GET  /status     sink, counts, last upload error
   GET  /results    v1 vs v2 results page (pages/results.html), data from GET /api/results
+  GET  /demo       presenter console for the live demo (pages/demo.html); GET /api/demo-config gives the workspace host
   GET  /api/results  gold tables through a SQL warehouse (DATABRICKS_WAREHOUSE_ID) + the designer's proposals
 
 Where events go (first match wins):
@@ -276,8 +277,10 @@ class Handler(SimpleHTTPRequestHandler):
                                    "warehouse": bool(self.gold)})
         if route == "/api/results":
             return self.api_results()
-        if route in ("/results", "/results/"):
-            body = (HERE / "pages" / "results.html").read_bytes()
+        if route == "/api/demo-config":  # workspace host for the demo console's links (no secrets)
+            return self.send_json({"workspace": os.environ.get("DATABRICKS_HOST", "")})
+        if route in ("/results", "/results/", "/demo", "/demo/"):
+            body = (HERE / "pages" / ("demo.html" if route.startswith("/demo") else "results.html")).read_bytes()
             self.send_response(200)
             self.send_header("content-type", "text/html; charset=utf-8")
             self.send_header("content-length", str(len(body)))

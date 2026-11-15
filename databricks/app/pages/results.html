@@ -207,14 +207,17 @@
     types.forEach((st) => {
       const t = tasks.filter((r) => r.session_type === st), e = els.filter((r) => r.session_type === st);
       const g = gl.filter((r) => r.session_type === st), b = bh.filter((r) => r.session_type === st);
+      html += `<a id="st-${esc(st)}"></a>`;  // anchor for /results#st-human etc. (demo console)
       if (g.length) html += goalSection(st, g);
       if (b.length) html += behaviorSection(st, b);
       if (t.length) html += taskSection(st, t);
       if (e.length) html += elementSection(st, e);
     });
-    html += proposalSections(d.proposals);
+    html += '<div id="proposals">' + proposalSections(d.proposals) + '</div>';
     if (d.schema) html += `<p class="muted" style="font-size:12px">Source: <code>${esc(d.schema)}.gold_task_summary</code>, <code>gold_element_friction</code>, <code>gold_goal_summary</code>, <code>gold_bot_behavior</code> via SQL warehouse. Cached 30 s.</p>`;
     $('out').innerHTML = html;
+    const target = location.hash && document.getElementById(location.hash.slice(1));
+    if (target) target.scrollIntoView();
   }
   $('reload').addEventListener('click', (e) => { e.preventDefault(); load(); });
   load();

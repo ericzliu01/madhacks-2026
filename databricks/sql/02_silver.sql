@@ -27,6 +27,7 @@ FROM (
          ) AS rn
   FROM ${catalog}.${schema}.bronze_events
   WHERE sid IS NOT NULL AND t IS NOT NULL
+    AND COALESCE(st, '') <> 'demo'  -- live-demo clicks (demo console, st=demo) never reach the study tables
     AND sid NOT IN (SELECT session_id FROM ${catalog}.${schema}.excluded_sessions WHERE session_id IS NOT NULL)
 ) d
 WHERE rn = 1;

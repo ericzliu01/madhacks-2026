@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Friction Atlas Demo</title>
+<style>
+  :root { --ink:#1b3139; --muted:#5a6f77; --line:#dce0e2; --bg:#f3f1ed; --card:#fff; --accent:#2272b4;
+          --ok:#1d6b3a; --okbg:#e3f4e8; --warn:#7a5c00; --warnbg:#fff4d6; --bad:#a3271d; --badbg:#fbe9e7; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; color:var(--ink); background:var(--bg);
+         display:grid; grid-template-rows:auto 1fr; }
+  header { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:8px 14px; background:var(--card);
+           border-bottom:1px solid var(--line); }
+  header h1 { font-size:15px; margin:0 6px 0 0; }
+  .pills { display:flex; flex-wrap:wrap; gap:6px; flex:1; }
+  .pill { font-size:12px; padding:3px 9px; border-radius:99px; background:#eef0f1; color:var(--muted); white-space:nowrap; }
+  .pill.ok { background:var(--okbg); color:var(--ok); } .pill.warn { background:var(--warnbg); color:var(--warn); }
+  .pill.bad { background:var(--badbg); color:var(--bad); }
+  .timer { display:flex; align-items:center; gap:6px; }
+  #clock { font:600 22px/1 ui-monospace, monospace; min-width:66px; text-align:right; font-variant-numeric:tabular-nums; }
+  #clock.late { color:var(--bad); }
+  button, .btn { font:inherit; font-size:13px; border:1px solid var(--line); background:var(--card); color:var(--ink);
+                 border-radius:6px; padding:5px 10px; cursor:pointer; text-decoration:none; display:inline-block; }
+  button:hover, .btn:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .wrap { display:grid; grid-template-columns:minmax(300px, 380px) 1fr; min-height:0; }
+  aside { overflow:auto; padding:12px 14px 30px; border-right:1px solid var(--line); background:var(--card); }
+  .steps { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:12px; }
+  .steps button { padding:4px 8px; font-size:12px; }
+  .steps button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .steps button.done { color:var(--muted); }
+  h2 { font-size:17px; margin:0 0 2px; }
+  .meta { color:var(--muted); font-size:12px; margin-bottom:10px; }
+  h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:14px 0 6px; }
+  .say { font-size:15px; line-height:1.5; border-left:3px solid var(--accent); padding:2px 0 2px 10px; margin:0; }
+  ol, ul { margin:0; padding-left:18px; } li { margin:3px 0; }
+  .links { display:flex; flex-wrap:wrap; gap:6px; }
+  .q { display:flex; gap:6px; align-items:flex-start; margin:4px 0; font-size:13px; }
+  .q span { flex:1; } .q small { color:var(--muted); }
+  .warnbox { background:var(--warnbg); color:var(--warn); border-radius:6px; padding:6px 10px; font-size:12px; margin-top:8px; }
+  details { margin-top:14px; border-top:1px solid var(--line); padding-top:8px; }
+  summary { cursor:pointer; font-weight:600; font-size:13px; }
+  details label { display:flex; gap:8px; align-items:flex-start; margin:5px 0; font-size:13px; }
+  input[type=text] { width:100%; font:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--line); border-radius:6px; }
+  .stage { display:grid; grid-template-rows:auto 1fr; min-height:0; }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); }
+  .tabs button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .tabs .spacer { flex:1; }
+  .frames { display:grid; gap:8px; padding:8px; min-height:0; }
+  .frames.two { grid-template-columns:1fr 1fr; }
+  .frame { display:grid; grid-template-rows:auto 1fr; min-height:0; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .frame .cap { font-size:12px; color:var(--muted); padding:4px 10px; border-bottom:1px solid var(--line); }
+  iframe { border:0; width:100%; height:100%; background:#fff; }
+  .ext { display:grid; place-items:center; text-align:center; color:var(--muted); padding:30px; }
+  .ext .btn { font-size:15px; padding:10px 18px; margin-top:10px; }
+  kbd { font:11px ui-monospace, monospace; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 4px; }
+  @media (max-width:900px) { .wrap { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); max-height:50vh; }
+    .frames.two { grid-template-columns:1fr; } body { grid-template-rows:auto auto; } .stage { min-height:70vh; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Friction Atlas &middot; demo console</h1>
+  <div class="pills" id="pills"><span class="pill">checking&hellip;</span></div>
+  <div class="timer">
+    <span id="clock" title="Elapsed (4:00 slot)">0:00</span>
+    <button id="go" class="primary" title="Space">Start</button>
+    <button id="reset" title="Reset the timer">Reset</button>
+  </div>
+</header>
+<div class="wrap">
+  <aside>
+    <div class="steps" id="steps"></div>
+    <div id="notes"></div>
+    <details id="prep">
+      <summary>Before judging</summary>
+      <div id="checks"></div>
+    </details>
+    <details>
+      <summary>What not to say</summary>
+      <ul style="font-size:13px;margin-top:6px">
+        <li>No statistical significance, no "users preferred". 6 people is anecdote scale.</li>
+        <li>Agent rows are bots on the real UI, simulated rows are generated: neither is people.</li>
+        <li>No eye tracking. Cursor position is a rough proxy at best.</li>
+        <li><code>ai_gen</code>'s model is chosen by Databricks; we don't know which it is.</li>
+        <li>v3 still has three planted flaws: nobody proposed fixes for them.</li>
+      </ul>
+    </details>
+    <details>
+      <summary>Settings</summary>
+      <label style="display:block">Workspace URL<input type="text" id="ws" placeholder="https://dbc-xxxx.cloud.databricks.com"></label>
+      <label style="display:block">Genie space URL<input type="text" id="genie" placeholder="https://…/genie/rooms/…"></label>
+      <p class="meta">Saved in this browser only. Keys: <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step, <kbd>Space</kbd> timer, <kbd>1</kbd>-<kbd>4</kbd> stage tab.</p>
+    </details>
+  </aside>
+  <section class="stage">
+    <div class="tabs" id="tabs"></div>
+    <div class="frames" id="frames"></div>
+  </section>
+</div>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('demo.' + k); return v == null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('demo.' + k, v); } catch (e) { /* private window: not remembered */ } }
+  };
+  // Demo traffic is tagged st=demo: the pipeline drops it in silver, so nothing clicked here reaches the study tables.
+  const dash = (v) => `/?study=0&st=demo&pid=DEMO&v=${v}`;
+  const ws = () => (store.get('ws', '') || window.__ws || '').replace(/\/+$/, '');
+  const ext = {
+    catalog: () => ws() && ws() + '/explore/data/workspace/ux_telemetry',
+    volume: () => ws() && ws() + '/explore/data/volumes/workspace/ux_telemetry/raw_events',
+    sql: () => ws() && ws() + '/sql/editor',
+    genie: () => store.get('genie', '')
+  };
+
+  const STEPS = [
+    { t: 0, d: 20, title: 'The problem',
+      say: 'Dashboards fail people silently: a filter nobody finds, a chart you can\'t read exactly. Analytics tells you <i>that</i> people leave, not <i>why</i>.',
+      stage: [{ label: 'Dashboard v1', src: dash(1) }] },
+    { t: 20, d: 40, title: 'Capture',
+      say: 'Our SDK records clicks, hovers and chart interactions, never what you type. Events land in a Unity Catalog Volume.',
+      do: ['Hover the <b>Daily trips</b> line: no tooltip in v1.', 'Click the <b>Avg fare</b> card three times: looks clickable, does nothing.',
+           'Open the <b>&hellip;</b> menu: the borough filter hides there.', 'Switch to <b>/status</b>: the written count goes up.'],
+      stage: [{ label: 'Dashboard v1', src: dash(1) }, { label: '/status', src: '/status' }] },
+    { t: 60, d: 40, title: 'Raw to gold',
+      say: 'Raw JSONL in the Volume, bronze, silver, gold. One SQL file rebuilds it. Every metric is defined in the table comments. Human, agent and simulated data never mix.',
+      do: ['Catalog Explorer: Volume <code>raw_events</code>, then <code>silver_goals</code>, then <code>gold_element_friction</code>.', 'Point at a column comment.'],
+      links: [['Catalog: ux_telemetry', 'catalog'], ['Volume: raw_events', 'volume'], ['SQL editor', 'sql']],
+      stage: [{ label: 'Catalog Explorer', ext: 'catalog' }, { label: '/status', src: '/status' }] },
+    { t: 100, d: 40, title: 'Genie',
+      say: 'Anyone can ask the gold tables in plain English. Before curation Genie invented a weighted score; with instructions and example SQL it passes 10 of 10 benchmarks.',
+      questions: [['Which element gets the most rage clicks in v1?', 'benchmarked'], ['What do users rage-click?', 'benchmarked'],
+                  ['For human sessions on v1, which goal had the lowest success rate?', 'not benchmarked: rehearse first'],
+                  ['For human sessions on v1, which element has the most dead clicks?', 'not benchmarked: rehearse first']],
+      links: [['Genie space', 'genie']],
+      stage: [{ label: 'Genie', ext: 'genie' }] },
+    { t: 140, d: 50, title: 'AI designer + sign-off',
+      say: 'Six real people used v1. Databricks\' <code>ai_gen</code> saw only their gold rows: no flaw list, no v2. Unprompted, it proposed <b>tooltips on the line chart</b> and <b>an easier borough filter</b> (G2: 0 of 6 correct). Every citation is checked in code; one of six failed. A UX developer approved two and rejected three, each with a reason.',
+      do: ['Scroll to <b>ai-gen-loop1</b>: show P1 and P5 approved, P2 rejected with its reason.', 'Point at a cited number and its <i>n</i>.'],
+      stage: [{ label: 'Proposals', src: '/results#proposals' }] },
+    { t: 190, d: 40, title: 'Re-test',
+      say: 'v3 is v1 plus only the two approved changes. Bots with one fixed strategy use the real UI, same for both. G3 (line chart) went from 2/15 to 15/15. G1 stayed 0/15: the truncated axis was never proposed, so it was never fixed. Bots find hidden menus, so G2 needs people. Bots are not people.',
+      do: ['Hover the line in v3: tooltip appears.', 'Point at the inline Borough filter.', 'Open the agent goals table on /results.'],
+      stage: [{ label: 'v1 | v3 side by side', pair: [dash(1), dash(3)] }, { label: 'Agent goals', src: '/results#st-agent' }, { label: 'Human goals', src: '/results#st-human' }] },
+    { t: 230, d: 10, title: 'Close',
+      say: 'Capture, Databricks medallion, Genie, an AI designer with checks and human sign-off, and a re-test. All on Free Edition.',
+      stage: [{ label: 'Results', src: '/results' }] }
+  ];
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  let cur = Math.min(+store.get('step', 0) || 0, STEPS.length - 1), tab = 0;
+  function renderSteps() {
+    $('steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === cur ? 'on' : i < cur ? 'done' : ''}">${fmt(s.t)} ${esc(s.title)}</button>`).join('');
+  }
+  function linkBtn([label, key]) {
+    const u = ext[key]();
+    return u ? `<a class="btn" href="${esc(u)}" target="db-${key}" rel="noopener">${esc(label)} &#8599;</a>`
+             : `<button disabled title="Set it under Settings">${esc(label)} (set URL)</button>`;
+  }
+  function renderNotes() {
+    const s = STEPS[cur];
+    let h = `<h2>${esc(s.title)}</h2><div class="meta">${fmt(s.t)}&ndash;${fmt(s.t + s.d)} &middot; ${s.d} s</div>`;
+    h += `<h3>Say</h3><p class="say">${s.say}</p>`;
+    if (s.do) h += `<h3>Do</h3><ol>${s.do.map((x) => `<li>${x}</li>`).join('')}</ol>`;
+    if (s.questions) h += `<h3>Ask Genie</h3>` + s.questions.map(([q, note], i) =>
+      `<div class="q"><button data-copy="${i}" title="Copy">Copy</button><span>${esc(q)}<br><small>${esc(note)}</small></span></div>`).join('');
+    if (s.links) h += `<h3>Open</h3><div class="links">${s.links.map(linkBtn).join('')}</div>`;
+    $('notes').innerHTML = h;
+  }
+  function renderStage() {
+    const s = STEPS[cur], st = s.stage[Math.min(tab, s.stage.length - 1)];
+    $('tabs').innerHTML = s.stage.map((x, i) => `<button data-tab="${i}" class="${x === st ? 'on' : ''}">${esc(x.label)}</button>`).join('') +
+      `<span class="spacer"></span>` +
+      (st.src ? `<a class="btn" href="${esc(st.src)}" target="_blank" rel="noopener">Open full &#8599;</a>` : '') +
+      `<button id="reload" title="Reload the stage">Reload</button>`;
+    const fr = $('frames');
+    fr.className = 'frames' + (st.pair ? ' two' : '');
+    const frame = (src, cap) => `<div class="frame"><div class="cap">${esc(cap)}</div><iframe src="${esc(src)}" title="${esc(cap)}"></iframe></div>`;
+    if (st.pair) fr.innerHTML = frame(st.pair[0], 'v1 (as tested by people)') + frame(st.pair[1], 'v3 = build-1: v1 + approved P1, P5');
+    else if (st.src) fr.innerHTML = frame(st.src, st.label);
+    else {
+      // Workspace pages refuse to load inside another site, so they open in their own tab (reused on every click).
+      const u = ext[st.ext]();
+      fr.innerHTML = `<div class="frame"><div class="ext"><div><b>${esc(st.label)}</b> opens in its own tab (Databricks pages can't be embedded).<br>
+        ${u ? `<a class="btn" href="${esc(u)}" target="db-${st.ext}" rel="noopener">Open ${esc(st.label)} &#8599;</a>` : '<div class="warnbox">Set the URL under Settings first.</div>'}</div></div></div>`;
+    }
+  }
+  function go(i) { cur = Math.max(0, Math.min(STEPS.length - 1, i)); tab = 0; store.set('step', cur); renderSteps(); renderNotes(); renderStage(); }
+
+  $('steps').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) go(+b.dataset.i); });
+  $('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab]'); if (b) { tab = +b.dataset.tab; renderStage(); }
+    if (e.target.id === 'reload') document.querySelectorAll('#frames iframe').forEach((f) => { f.src = f.src; });
+  });
+  $('notes').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-copy]'); if (!b) return;
+    const q = STEPS[cur].questions[+b.dataset.copy][0];
+    try { await navigator.clipboard.writeText(q); b.textContent = 'Copied'; } catch (err) { b.textContent = 'Copy failed'; }
+    setTimeout(() => { b.textContent = 'Copy'; }, 1200);
+  });
+
+  // ---------------------------------------------------------------- timer
+  let started = null, acc = 0;
+  const elapsed = () => acc + (started ? (Date.now() - started) / 1000 : 0);
+  function tick() {
+    const e = elapsed(), s = STEPS[cur];
+    $('clock').textContent = fmt(e);
+    $('clock').classList.toggle('late', e > 240 || (started && e > s.t + s.d + 5));
+    $('clock').title = `Elapsed. Planned for this step: ${fmt(s.t)}-${fmt(s.t + s.d)}`;
+  }
+  function toggle() { if (started) { acc = elapsed(); started = null; $('go').textContent = 'Resume'; } else { started = Date.now(); $('go').textContent = 'Pause'; } tick(); }
+  $('go').addEventListener('click', toggle);
+  $('reset').addEventListener('click', () => { started = null; acc = 0; $('go').textContent = 'Start'; go(0); tick(); });
+  setInterval(tick, 250);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input, textarea')) return;
+    if (e.key === 'ArrowRight') go(cur + 1);
+    else if (e.key === 'ArrowLeft') go(cur - 1);
+    else if (e.key === ' ') { e.preventDefault(); toggle(); }
+    else if (/^[1-4]$/.test(e.key) && STEPS[cur].stage[+e.key - 1]) { tab = +e.key - 1; renderStage(); }
+  });
+
+  // ---------------------------------------------------------------- settings
+  ['ws', 'genie'].forEach((k) => {
+    $(k).value = store.get(k, '');
+    $(k).addEventListener('change', () => { store.set(k, $(k).value.trim()); renderNotes(); renderStage(); renderChecks(); });
+  });
+
+  // ---------------------------------------------------------------- readiness (live)
+  const health = { status: null, results: null };
+  const pill = (cls, text, title) => `<span class="pill ${cls}" title="${esc(title || '')}">${text}</span>`;
+  function renderPills() {
+    const s = health.status, r = health.results, p = [];
+    if (!s) p.push(pill('bad', 'app: no /status'));
+    else {
+      const vol = s.sink === 'VolumeSink';
+      p.push(pill(vol && !s.flush_errors ? 'ok' : 'bad', `telemetry: ${esc(s.sink)}, ${s.flush_errors} errors`, s.last_error || s.where));
+      p.push(pill('', `written: ${s.written}${s.buffered ? ` (+${s.buffered} buffered)` : ''}`));
+      p.push(pill(s.warehouse ? 'ok' : 'bad', s.warehouse ? 'warehouse: set' : 'warehouse: missing'));
+    }
+    if (r === null) p.push(pill('', 'gold: loading&hellip;'));
+    else if (r.error && !r.goals) p.push(pill('bad', 'gold: error', r.error));
+    else {
+      const types = [...new Set((r.goals || []).map((x) => x.session_type))].join(', ') || 'none';
+      const errs = Object.keys(r.errors || {}).length;
+      p.push(pill(errs ? 'warn' : 'ok', `gold goals: ${esc(types)}`, errs ? 'Some tables failed: ' + Object.keys(r.errors).join(', ') : ''));
+      const sets = (r.proposals || []).filter((x) => !x.error);
+      const loop = sets.find((x) => (x.changes || []).some((c) => c.reviewed_by));
+      p.push(pill(sets.length ? 'ok' : 'warn', `proposal sets: ${sets.length}`, loop ? 'Signed-off set present' : ''));
+    }
+    $('pills').innerHTML = p.join('');
+  }
+  async function pollStatus() {
+    try { health.status = await (await fetch('/status', { cache: 'no-store' })).json(); } catch (e) { health.status = null; }
+    renderPills(); renderChecks();
+  }
+  async function pollResults() {
+    try { health.results = await (await fetch('/api/results', { cache: 'no-store' })).json(); } catch (e) { health.results = { error: String(e) }; }
+    renderPills(); renderChecks();
+  }
+
+  const CHECKS = [
+    ['deploy', 'App redeployed today (Free Edition apps stop 24 h after deploy)'],
+    ['status', 'Telemetry writes to the Volume with 0 errors', () => health.status && health.status.sink === 'VolumeSink' && !health.status.flush_errors],
+    ['warehouse', 'SQL warehouse attached and gold tables load', () => health.results && health.results.goals && !health.results.error],
+    ['agentv3', 'Agent v1 vs v3 rows present (bot re-test uploaded, pipeline rerun)', () => health.results && (health.results.goals || []).some((g) => g.session_type === 'agent' && g.app_version === 'v3')],
+    ['proposals', 'ai-gen-loop1 proposals show with sign-off', () => health.results && (health.results.proposals || []).some((p) => (p.changes || []).some((c) => c.reviewed_by))],
+    ['warm', 'Warehouse warmed up (opened the SQL editor once; cold start is ~1 min)'],
+    ['genie', 'Genie space open and the questions rehearsed'],
+    ['ws', 'Workspace URL set (Settings)', () => !!ws()],
+    ['zoom', 'Browser zoom readable from the back of the room; notifications off']
+  ];
+  function renderChecks() {
+    $('checks').innerHTML = CHECKS.map(([k, label, auto]) => {
+      const a = auto ? auto() : null;
+      const on = a === true || (a == null && store.get('chk.' + k, '') === '1');
+      const tag = a === true ? ' <small style="color:var(--ok)">(checked live)</small>' : a === false ? ' <small style="color:var(--bad)">(not yet)</small>' : '';
+      return `<label><input type="checkbox" data-k="${k}" ${on ? 'checked' : ''} ${a != null ? 'disabled' : ''}> <span>${esc(label)}${tag}</span></label>`;
+    }).join('');
+  }
+  $('checks').addEventListener('change', (e) => { const k = e.target.dataset.k; if (k) store.set('chk.' + k, e.target.checked ? '1' : ''); });
+
+  fetch('/api/demo-config', { cache: 'no-store' }).then((r) => r.json()).then((c) => {
+    if (c.workspace) window.__ws = c.workspace.startsWith('http') ? c.workspace : 'https://' + c.workspace;
+    if (!store.get('ws', '') && window.__ws) $('ws').value = window.__ws;
+    if (!ws()) $('prep').open = true;  // no workspace URL known: show the setup list
+    renderNotes(); renderStage(); renderChecks();
+  }).catch(() => { $('prep').open = true; });
+  go(cur); tick(); pollStatus(); pollResults();
+  setInterval(pollStatus, 5000);
+  setInterval(pollResults, 60000);
+})();
+</script>
+</body>
+</html>
