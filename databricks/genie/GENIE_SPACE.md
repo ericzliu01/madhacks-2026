@@ -94,8 +94,8 @@ Run the benchmarks after each change to instructions or tables. Treat a failing 
 query or sharpen an instruction.
 
 ## 5. Where Claude fits (not Genie)
-Genie answers analytic questions over the gold tables. The *design proposal* step is separate: Claude acts as the
-designer. It reads the gold tables (or Genie API answers) plus the literature notes and proposes a concrete UI diff,
-citing the metric and element (`uxid`) behind each change. The proposed v2 is then re-tested against v1 in the same
-pipeline. Genie may also be called from the Databricks App through the Genie conversation API (see the docs); that is
-a later step.
+Genie answers analytic questions over the gold tables. The *design proposal* step is separate: Claude drafts the
+design change. It reads the gold tables (or Genie API answers) plus the literature notes and proposes a concrete UI diff,
+citing the metric and element (`uxid`) behind each change. **A UX developer signs off** (approve, edit or reject) before
+anything is built. Only the approved change becomes v2, which is then re-tested against v1 in the same pipeline. Genie may
+also be called from the Databricks App through the Genie conversation API (see the docs); that is a later step.
