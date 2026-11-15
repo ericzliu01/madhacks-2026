@@ -95,4 +95,10 @@ check("relevance: chat target with task-study evidence rejected", "task study" i
 check("relevance: friction row for another element rejected", "not kpi-avg-fare" in why.get("KPI fix from menu clicks", ""))
 check("relevance: the matching change still passes", [c["title"] for c in ok] == [good["title"]])
 
+# independence: designers get evidence, element names and neutral notes, never the planted flaw list
+blob = json.dumps(pack) + propose.ai_gen_prompt()
+check("designer inputs contain no planted-flaw descriptions",
+      not any(desc in blob for desc in propose.FLAWS.values()) and "planted" not in propose.ai_gen_prompt().lower()
+      and "tooltip" not in blob.lower() and "truncat" not in blob.lower())
+
 sys.exit(0 if all(results) else 1)

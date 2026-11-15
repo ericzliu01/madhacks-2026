@@ -46,19 +46,31 @@ MODEL = "claude-opus-5-5"
 
 # study chrome, not part of the product UI being redesigned
 CHROME = re.compile(r"^(sat-\d|gsat-\d|task-|goal-|consent-)")
+# What designers are told about the assistant's answer types: NEUTRAL descriptions (what kind of answer, not what goes
+# wrong), so a designer has to find problems in the evidence. The planted problems are documented in chatbot.py.
 BEHAVIORS = {
-    "B1": "derived values (percent difference) stated confidently but computed from the truncated v1 axis: wrong",
-    "B2": "ignores the borough the first time a goal asks a borough-specific aggregate, answers for all boroughs",
-    "B3": "slow reply (7 s) with no progress indicator",
-    "B4": "retired in design revision 2 (the assistant is open in both versions); r1 data only: chat entry point was a small, unlabeled icon",
-    "B5": "ignores the chart point the user selected when asked why it looks odd",
+    "B1": "answers to percent-difference questions between two boroughs",
+    "B2": "answers to borough-specific averages and totals",
+    "B3": "answers to highest / lowest day questions",
+    "B4": "how the assistant is opened (identical in both versions since design revision 2)",
+    "B5": "explanations of a chart point the user selected",
 }
+# Neutral descriptions of the page elements a designer may target.
+ELEMENT_NOTES = {
+    "chart-bar": "bar chart: total trips by borough",
+    "chart-line": "line chart: daily trips per borough (hovering and clicking points is possible)",
+    "kpi-total-trips": "KPI card: total trips", "kpi-avg-fare": "KPI card: average fare",
+    "filter-borough": "borough filter (select)", "menu-more": "the '...' menu button in the header",
+    "chat-input": "assistant prompt box", "chat-send": "assistant send button", "chat-launcher": "button that opens the assistant",
+    "chat-minimize": "button that minimizes the assistant", "chat-selection-clear": "clears the chart point selected for the assistant",
+}
+# The planted flaws, for documentation and tests ONLY. Never sent to a designer: proposals must come from the evidence.
 FLAWS = {
     "F1": "bar chart y-axis truncated just below the smallest value (exaggerates differences)",
     "F2": "line chart uses four near-identical muted colors and a tiny pale legend",
     "F3": "borough filter only reachable through the '...' menu",
     "F4": "Avg fare KPI card looks clickable (pointer cursor, hover ring) but does nothing",
-    "F5": "line chart (Daily trips) uses a log-scale y axis in v1 (design revision 2), compressing gaps and dips",
+    "F5": "no hover tooltips on either chart in v1 (design revision 2)",
 }
 TABLES = {  # table -> (key columns, n columns)
     "gold_version_comparison": (["session_type", "task_id", "task_category"], ["n_trials_v1", "n_trials_v2"]),
@@ -123,7 +135,8 @@ def build_pack(rows, source):
                              "metrics": {k: v for k, v in r.items()
                                          if k not in keys and k not in ns and isinstance(v, (int, float)) and v is not None}})
     return {"generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "source": source,
-            "evidence": evidence, "elements": elements(), "planted_flaws": FLAWS, "planted_behaviors": BEHAVIORS,
+            "evidence": evidence, "elements": elements(), "element_notes": {e: ELEMENT_NOTES.get(e, "") for e in elements()},
+            "assistant_answer_types": BEHAVIORS,
             "literature_verified": verified_literature()}
 
 
@@ -227,7 +240,7 @@ def validate(draft, pack):
         problems, cites = [], []
         if c["target_kind"] == "element" and c["target"] not in pack["elements"]:
             problems.append(f"unknown element {c['target']!r}")
-        if c["target_kind"] == "behavior" and c["target"] not in pack["planted_behaviors"]:
+        if c["target_kind"] == "behavior" and c["target"] not in pack["assistant_answer_types"]:
             problems.append(f"unknown behavior {c['target']!r}")
         for e in c["evidence"]:
             row = by_id.get(e["evidence_id"])
@@ -357,8 +370,8 @@ def ai_gen_prompt():
         SYSTEM, "",
         "Reply with ONLY one JSON object, no prose and no code fence, in exactly this shape:", fmt, "",
         "elements (data-ux-id): " + ", ".join(elements()),
-        "planted_behaviors: " + json.dumps(BEHAVIORS),
-        "planted_flaws (chart and page): " + json.dumps(FLAWS),
+        "element notes: " + json.dumps({e: ELEMENT_NOTES.get(e, "") for e in elements()}),
+        "assistant answer types (behavior targets): " + json.dumps(BEHAVIORS),
         lit, "",
         "Evidence rows grouped by table. Each row has an id (cite it as evidence_id); the n fields are the columns "
         "starting with n_. Rows:",

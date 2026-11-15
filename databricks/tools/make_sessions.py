@@ -140,7 +140,7 @@ WHY = ["Why did this drop?", "why is this so low?", "what happened here?"]
 
 
 class ChatSession(Session):
-    APP = "taxi-ops-demo-r2-v{v}"  # design revision 2: assistant open in both versions, log axis on the v1 line chart
+    APP = "taxi-ops-demo-r2-v{v}"  # design revision 2: assistant open in both versions, no tooltips in v1
 
     def __init__(self, rnd, sid, version, pid, t0):
         super().__init__(rnd, sid, version, pid, t0)

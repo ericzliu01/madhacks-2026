@@ -11,7 +11,7 @@ SELECT session_id, session_type, app_id, app_version, participant_id, task_id, t
        had_selection, goal_sim, pasted
 FROM (
   SELECT sid AS session_id,
-         -- Design revision 2 (2026-11-15): log y axis on the v1 line chart (F5), assistant visible in both versions
+         -- Design revision 2 (2026-11-15): no hover tooltips in v1 (F5), assistant visible in both versions
          -- (B4 retired). Human and agent sessions recorded on the earlier design get their own session type
          -- (human_r1, agent_r1) so they are never pooled with revision-2 data. Simulated data is generated, not recorded.
          CASE WHEN st IN ('human', 'agent') AND app NOT LIKE '%-r2-%' THEN st || '_r1' ELSE st END AS session_type,

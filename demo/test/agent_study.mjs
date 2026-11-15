@@ -98,6 +98,14 @@ window.__agent = {
       return { h: Math.min(r.bottom, area.bottom) - Math.max(r.top, area.top), label: tx && this.visible(tx) ? tx.textContent : null };
     });
   },
+  // y-axis tick labels with their screen positions (for reading values by eye when there is no tooltip)
+  yticks(sel) {
+    return [...document.querySelectorAll(sel + ' .ytick text')].filter((t) => this.visible(t)).map((t) => {
+      const r = t.getBoundingClientRect(), raw = t.textContent.replace(/[,\s]/g, '');
+      const v = /k$/i.test(raw) ? parseFloat(raw) * 1000 : parseFloat(raw);
+      return { v, y: r.top + r.height / 2 };
+    }).filter((t) => Number.isFinite(t.v));
+  },
   xLabels(sel) { return [...document.querySelectorAll(sel + ' .xtick text')].map((t) => t.textContent); },
 };`;
 
@@ -171,14 +179,24 @@ class Bot {
   // bot nudges the pointer up and down until the tooltip names the series it wants.
   async valueAt(line, idx, name, day) {
     const [x, y] = day === undefined ? line.pts[idx] : this.pointForDay(line, day);
+    let sawTip = false;
     for (const [dx, dy] of [[0, 0], [0, -3], [0, 3], [3, 0], [-3, 0], [0, -6], [0, 6], [3, -3], [3, 3], [0, -9], [0, 9]]) {
       await this.p.mouse.move(x + dx, y + dy, { steps: 2 }); await sleep(220);
       const tip = await this.ev(() => window.__agent.tooltip());
       const uni = tip.match(new RegExp(name + '\\s*:\\s*([\\d,.]+)'));
       if (uni) return +uni[1].replace(/,/g, '');
       if (tip.startsWith(name)) { const m = tip.match(/,\s*([\d,.]+)\)\s*$/); if (m) return +m[1].replace(/,/g, ''); }
+      if (tip) sawTip = true;
+      else if (dx === 3 && dy === -3 && !sawTip) break;  // several nudges and never a tooltip: there are none
     }
-    return NaN;
+    return sawTip ? NaN : this.readByEye(y);  // no tooltips on this chart: read the value by eye
+  }
+  // no tooltip: estimate the value from the point's height against the y-axis tick labels (+-1 px)
+  async readByEye(y) {
+    const ticks = await this.ev(() => window.__agent.yticks('#line'));
+    if (ticks.length < 2) return NaN;
+    const a = ticks[0], b = ticks[ticks.length - 1], yy = y + (this.r() - 0.5) * 2;
+    return Math.round(a.v + (yy - a.y) * (b.v - a.v) / (b.y - a.y));
   }
   // Plotly simplifies line paths (drops collinear points), so the n-th path point is NOT the n-th day. Dates come from
   // x position between the first and last points (always kept: March 1 and March 30), like reading the x axis.

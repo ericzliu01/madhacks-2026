@@ -63,7 +63,7 @@ SELECT session_id, session_type, app_id, app_version, participant_id, task_id, t
        had_selection, goal_sim, pasted
 FROM (
   SELECT sid AS session_id,
-         -- Design revision 2 (2026-11-15): log y axis on the v1 line chart (F5), assistant visible in both versions
+         -- Design revision 2 (2026-11-15): no hover tooltips in v1 (F5), assistant visible in both versions
          -- (B4 retired). Human and agent sessions recorded on the earlier design get their own session type
          -- (human_r1, agent_r1) so they are never pooled with revision-2 data. Simulated data is generated, not recorded.
          CASE WHEN st IN ('human', 'agent') AND app NOT LIKE '%-r2-%' THEN st || '_r1' ELSE st END AS session_type,
@@ -152,6 +152,7 @@ SELECT session_type, app_version, task_id, task_category,
        AVG(n_rage_clicks) AS avg_rage_clicks,
        AVG(n_dead_clicks) AS avg_dead_clicks,
        AVG(n_chart_hovers) AS avg_chart_hovers,
+       AVG(chart_hover_ms) AS avg_chart_hover_ms,
        AVG(n_legend_clicks) AS avg_legend_clicks,
        AVG(idle_ms) AS avg_idle_ms,
        AVG(first_action_ms) AS avg_first_action_ms,
@@ -451,6 +452,9 @@ COMMENT ON TABLE workspace.ux_telemetry.gold_task_summary IS
   'Aggregates of gold_trial_metrics per session_type (human or simulated, never mixed), design version (v1 = current UI, v2 = proposed change) and task. success_rate and abandon_rate are 0-1 fractions.';
 COMMENT ON COLUMN workspace.ux_telemetry.gold_task_summary.overtrust_rate IS
   'Share of INCORRECT answers that were rated 4-5 for satisfaction ("satisfied but wrong"). NULL when no incorrect answers.';
+
+COMMENT ON COLUMN workspace.ux_telemetry.gold_task_summary.avg_chart_hover_ms IS
+  'Average time per trial spent hovering chart marks (from the chart adapter; recorded whether or not a tooltip is shown). High hover time with low success suggests people are trying to read values off the chart.';
 
 COMMENT ON TABLE workspace.ux_telemetry.gold_element_friction IS
   'Rage and dead clicks per session_type, UI element (uxid) and design version. Highest rage_per_click flags elements with affordance problems.';

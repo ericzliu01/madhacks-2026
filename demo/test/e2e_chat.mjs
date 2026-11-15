@@ -26,7 +26,7 @@ async function runBot(v, consent) {
   await page.goto(`http://127.0.0.1:${PORT}/?study=1&pid=C0${v}&st=agent&v=${v}`);
   await page.waitForSelector('#g-start');
   await page.waitForSelector('#line .scatterlayer .trace');
-  logAxis[v] = await page.evaluate(() => document.getElementById('line')._fullLayout.yaxis.type);
+  logAxis[v] = await page.evaluate(() => [...document.querySelectorAll('#line, #bar')].map((gd) => gd.data.map((t) => t.hoverinfo || 'all').join()).join('/'));
   if (consent) await page.check('#g-consent');
   await page.click('#g-start');
   await page.waitForSelector('#chat:not([hidden])');
@@ -108,7 +108,8 @@ const lat = (evs, beh) => Math.max(...resp(evs, beh).map((e) => e.latency_ms));
 const g4sel = (evs) => { const s = of(evs, 'selection'), p = of(evs, 'prompt_submit').find((e) => e.goal === 'G4'); return s.length && p && s[0].t < p.t; };
 const checks = [
   ['revision 2: assistant opens automatically in both versions (B4 retired)', of(v1, 'chat_open')[0]?.how === 'auto' && of(v2, 'chat_open')[0]?.how === 'auto'],
-  ['F5: v1 line chart has a log y axis, v2 linear', logAxis[1] === 'log' && logAxis[2] === 'linear'],
+  ['F5: no tooltips on either chart in v1 (hoverinfo none), tooltips in v2', logAxis[1].split(/[\/,]/).every((h) => h === 'none') && !logAxis[2].includes('none')],
+  ['F5: hovering is still recorded in v1 without tooltips', of(v1, 'chart_hover').length > 0 || of(v1, 'selection').length > 0],
   ['five goal_start events with Amar categories', of(v1, 'goal_start').length === 5 && of(v1, 'goal_start').every((e) => e.gcats)],
   ['one prompt_submit per question, each with goal + turn', of(v1, 'prompt_submit').length === 6 && of(v1, 'prompt_submit').every((e) => e.goal && e.turn >= 1)],
   ['prompt_submit and assistant_response pair up by (goal, turn)', of(v1, 'prompt_submit').every((p) => of(v1, 'assistant_response').some((a) => a.goal === p.goal && a.turn === p.turn))],

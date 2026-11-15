@@ -26,6 +26,9 @@ COMMENT ON TABLE ${catalog}.${schema}.gold_task_summary IS
 COMMENT ON COLUMN ${catalog}.${schema}.gold_task_summary.overtrust_rate IS
   'Share of INCORRECT answers that were rated 4-5 for satisfaction ("satisfied but wrong"). NULL when no incorrect answers.';
 
+COMMENT ON COLUMN ${catalog}.${schema}.gold_task_summary.avg_chart_hover_ms IS
+  'Average time per trial spent hovering chart marks (from the chart adapter; recorded whether or not a tooltip is shown). High hover time with low success suggests people are trying to read values off the chart.';
+
 COMMENT ON TABLE ${catalog}.${schema}.gold_element_friction IS
   'Rage and dead clicks per session_type, UI element (uxid) and design version. Highest rage_per_click flags elements with affordance problems.';
 
