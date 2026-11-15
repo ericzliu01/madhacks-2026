@@ -1,18 +1,23 @@
 -- SILVER: typed, de-duplicated, human-readable names; trials reconstructed from task_start/outcome events.
 -- Portable subset (runs in Databricks SQL and in the local SQLite harness). Keep comments free of semicolons.
 
--- Events may be re-sent (keepalive retries), so keep one row per (session, time, type, element, position).
+-- Events may be re-sent (keepalive retries), so keep one row per (session, time, type, element, position, goal, turn).
+-- goal and turn are in the key: two assistant replies for different turns can arrive in the same millisecond.
 CREATE OR REPLACE TABLE ${catalog}.${schema}.silver_events AS
 SELECT session_id, session_type, app_id, app_version, participant_id, task_id, task_category, page, path, event_type,
        ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
-       status, satisfaction, answer, chart, series, prompt_text, how, chars, words, prompt_hash, ctx, combo, name
+       status, satisfaction, answer, chart, series, prompt_text, how, chars, words, prompt_hash, ctx, combo, name,
+       goal_id, goal_cats, turn_id, latency_ms, behavior, answer_id, correct, intent, feedback, mark_x, mark_y, overlap,
+       had_selection
 FROM (
   SELECT sid AS session_id, st AS session_type, app AS app_id, substr(app, -2) AS app_version, pid AS participant_id,
          task AS task_id, tcat AS task_category, page, path, type AS event_type,
          CAST(t AS BIGINT) AS ts_ms, uxid, testid, label, region, action, tag, role, interactive, ptr, x, y, v, n, dur,
          status, satisfaction, answer, chart, series, text AS prompt_text, how, chars, words, hash AS prompt_hash, ctx, combo, name,
+         goal AS goal_id, gcats AS goal_cats, turn AS turn_id, latency_ms, behavior, answer_id, correct, intent, feedback,
+         mark_x, mark_y, overlap, sel AS had_selection,
          ROW_NUMBER() OVER (
-           PARTITION BY sid, t, type, COALESCE(uxid, ''), COALESCE(x, -1), COALESCE(y, -1)
+           PARTITION BY sid, t, type, COALESCE(uxid, ''), COALESCE(x, -1), COALESCE(y, -1), COALESCE(goal, ''), COALESCE(turn, -1)
            ORDER BY recv_t
          ) AS rn
   FROM ${catalog}.${schema}.bronze_events

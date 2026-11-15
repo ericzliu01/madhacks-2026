@@ -31,3 +31,25 @@ COMMENT ON TABLE ${catalog}.${schema}.gold_element_friction IS
 
 COMMENT ON TABLE ${catalog}.${schema}.gold_version_comparison IS
   'v1 vs v2 per session_type and task (human and simulated are separate rows): success_delta = success_rate_v2 - success_rate_v1. Used to judge whether a proposed UI change helped. Small samples: treat as descriptive.';
+
+-- ---------------------------------------------------------------- chat study (06_silver_chat.sql, 07_gold_chat.sql)
+COMMENT ON TABLE ${catalog}.${schema}.silver_goals IS
+  'One row per (session, goal) in the chat-assistant study. A goal is an open-ended need (e.g. the Bronx average fare) worked on with the dashboard assistant. outcome: correct | incorrect | abandoned | no_outcome. final_turn = the assistant turn whose answer was submitted (NULL if typed by the participant).';
+COMMENT ON TABLE ${catalog}.${schema}.silver_turns IS
+  'One row per prompt/response pair (session, goal, turn). correct is 1/0 testbed ground truth from the stub assistant (NULL = it did not answer the question). prompt_text only with participant consent. overlap = token overlap with the previous prompt of the goal, computed in the browser.';
+COMMENT ON TABLE ${catalog}.${schema}.gold_turn_metrics IS
+  'Per assistant turn: failed, reformulated, repair_attempt and verified flags. Proxies, not measurements: see the column comments for the exact rules. session_type=simulated rows are bot-generated.';
+COMMENT ON COLUMN ${catalog}.${schema}.gold_turn_metrics.reformulated IS
+  '1 if the next prompt in the same goal came within 60 s of this prompt and its token overlap with this prompt is >= 0.6 (overlap coefficient over lowercase content tokens, stopwords removed).';
+COMMENT ON COLUMN ${catalog}.${schema}.gold_turn_metrics.repair_attempt IS
+  '1 if this turn failed (wrong reply, or no answer to the question) and another prompt in the same goal followed within 60 s of the reply, whatever its overlap.';
+COMMENT ON COLUMN ${catalog}.${schema}.gold_turn_metrics.verified IS
+  '1 if the participant interacted with a chart (hover, click, legend, zoom, point selection) or changed the borough filter within 10 s after the reply.';
+COMMENT ON COLUMN ${catalog}.${schema}.gold_turn_metrics.behavior IS
+  'Planted assistant behavior that fired on this turn: B1 confident wrong percent, B2 borough ignored, B3 slow reply, B5 chart selection ignored (v1 = flawed, v2 = fixed). NULL = no planted behavior.';
+COMMENT ON TABLE ${catalog}.${schema}.gold_goal_metrics IS
+  'Per goal attempt: turns, failed turns, over-trust and drop-off flags. overtrust = a wrong assistant answer was accepted, copied or submitted, satisfaction 4-5, and the final answer is not correct. dropoff_after_failure = abandoned or no outcome after at least one failed turn.';
+COMMENT ON TABLE ${catalog}.${schema}.gold_goal_summary IS
+  'Per session_type, design version and goal: success, abandonment, turns, time to first prompt, over-trust (share of goals that showed a wrong answer) and drop-off (avg_failed_turns_at_dropoff = k). Small samples: descriptive only.';
+COMMENT ON TABLE ${catalog}.${schema}.gold_bot_behavior IS
+  'Per planted assistant behavior (B1-B5) and design version (v1 flawed, v2 fixed): wrong-answer, reformulation, repair and verification rates, latency, and outcomes of the goals where the behavior fired. B4 (chat entry point hidden in v1) reports avg_ms_to_chat_open and never_opened_rate per session instead.';

@@ -1,6 +1,8 @@
 -- BRONZE: raw events exactly as the SDK sends them (one row per event), plus load metadata. No cleaning here.
 -- Explicit schema so downstream SQL never breaks when a field is absent from a given batch.
 -- Portable subset: also executed by the local SQLite test harness (STRING -> TEXT there).
+-- This is the single list of raw columns: databricks/tools/gen_bronze_load.py writes 01b's read_files schema from it.
+-- Chat-study columns (goal .. sel) come from the goals mode: see packages/core/uxtelemetry.js and chatbot.py.
 CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.bronze_events (
   t BIGINT, recv_t BIGINT,
   sid STRING, st STRING, app STRING, task STRING, tcat STRING, pid STRING,
@@ -14,5 +16,8 @@ CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.bronze_events (
   status STRING, satisfaction BIGINT, answer STRING, name STRING,
   chart STRING, series STRING, prompt STRING,
   w BIGINT, h BIGINT, dpr DOUBLE,
+  goal STRING, gcats STRING, turn BIGINT,
+  latency_ms BIGINT, behavior STRING, answer_id STRING, correct BOOLEAN, intent STRING, feedback STRING,
+  mark_x STRING, mark_y DOUBLE, overlap DOUBLE, sel BOOLEAN,
   _source_file STRING, _ingested_at TIMESTAMP
 );
