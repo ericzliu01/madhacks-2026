@@ -1,6 +1,6 @@
 # Genie space: paste-ready blocks
 
-GENERATED from GENIE_SPACE.md by a one-off script (sections 2-4, table names qualified). If the two differ, GENIE_SPACE.md wins.
+Built from GENIE_SPACE.md (sections 2-4, table names qualified). If the two differ, GENIE_SPACE.md wins.
 
 ## Tables (workspace > ux_telemetry)
 
@@ -50,6 +50,10 @@ Chat-assistant study (tables gold_goal_*, gold_turn_metrics, gold_bot_behavior):
 - pasted_goal = the participant pasted the goal text itself into the chat (paste + similarity >= 0.8). Pasting is allowed
   and equally possible in v1 and v2. When reporting time to first prompt, reformulation or prompt labels, also give the
   *_excl_pasted value (or filter pasted_goal = 0) and say how many goals or turns were pasted.
+- Two studies share this space. Questions about the assistant, chat, bot, prompts, goals or behaviors B1-B5 use the
+  chat tables (gold_goal_*, gold_turn_metrics, gold_bot_behavior, gold_prompt_*). Questions about tasks T1-T5,
+  charts, rage or dead clicks, or UI elements use the task tables (gold_task_summary, gold_version_comparison,
+  gold_element_friction, gold_trial_metrics). If a question could mean either, answer for both and label which is which.
 ```
 
 ## Example SQL queries (question, then SQL)

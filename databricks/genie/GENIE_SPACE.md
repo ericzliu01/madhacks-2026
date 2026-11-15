@@ -45,9 +45,15 @@ Chat-assistant study (tables gold_goal_*, gold_turn_metrics, gold_bot_behavior):
 - pasted_goal = the participant pasted the goal text itself into the chat (paste + similarity >= 0.8). Pasting is allowed
   and equally possible in v1 and v2. When reporting time to first prompt, reformulation or prompt labels, also give the
   *_excl_pasted value (or filter pasted_goal = 0) and say how many goals or turns were pasted.
+- Two studies share this space. Questions about the assistant, chat, bot, prompts, goals or behaviors B1-B5 use the
+  chat tables (gold_goal_*, gold_turn_metrics, gold_bot_behavior, gold_prompt_*). Questions about tasks T1-T5,
+  charts, rage or dead clicks, or UI elements use the task tables (gold_task_summary, gold_version_comparison,
+  gold_element_friction, gold_trial_metrics). If a question could mean either, answer for both and label which is which.
 ```
 
-## 3. Example SQL queries (add as tested examples; replace the schema name)
+## 3. Example SQL queries (add as tested examples)
+Use fully qualified names (`workspace.ux_telemetry.<table>`): benchmark ground-truth SQL runs with `workspace.default`
+as the default schema, so bare names fail with TABLE_OR_VIEW_NOT_FOUND. `GENIE_PASTE.md` has the qualified versions.
 1. *Which tasks are hardest?*
    `SELECT session_type, task_id, task_category, app_version, success_rate, abandon_rate, n_trials FROM gold_task_summary ORDER BY session_type, success_rate ASC`
 2. *Did the proposed change (v2) help?*
@@ -79,6 +85,11 @@ Baseline before curation (2026-11-15, Genie through the MCP, not the curated spa
 planted bot behavior hurts users most?", Genie checked human rows first (good), then made up a weighted harm score and
 looked at v1 only, ranking B5 first. Example 7 ranks by v1 minus v2 instead: B3 leads on abandonment (+0.29), B1 on
 over-trust (0.38). The "never invent a composite score" instruction targets this.
+
+Curated space result (2026-11-15, the user's Genie space, simulated data plus 1 human session): **10/10 benchmarks Good**
+(Agent mode, evaluation notes as in `GENIE_PASTE.md`, one ground-truth SQL fixed for an unqualified table name first).
+These are our own 10 questions, close to our example SQL: the score shows Genie handles them as intended, not general
+accuracy.
 
 | Intent | Phrasings | Expected from |
 |---|---|---|
