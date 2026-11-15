@@ -42,10 +42,10 @@
    "retest_metric": "n_rage_clicks",
    "simulated_only": true,
    "id": "P1",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Dead and rage clicks on a non-interactive card; matches the v2 fix."
   },
   {
    "title": "Show the borough filter inline in the header",
@@ -98,10 +98,10 @@
    "retest_metric": "abandon_rate",
    "simulated_only": true,
    "id": "P2",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Hidden filter drives T4 abandonment; matches the v2 fix."
   },
   {
    "title": "Start the bar chart's y-axis at zero and label the bars",
@@ -142,10 +142,10 @@
    "retest_metric": "success_rate",
    "simulated_only": true,
    "id": "P3",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Truncated axis drives T2 errors and over-trust; bar labels go beyond v2."
   },
   {
    "title": "Have the assistant compute percentages from totals and show the working",
@@ -198,10 +198,10 @@
    "retest_metric": "overtrust_rate",
    "simulated_only": true,
    "id": "P4",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Showing the working is new relative to v2: re-test whether over-trust drops further."
   },
   {
    "title": "Replace the chat icon with a labeled 'Ask the assistant' button, open by default",
@@ -241,10 +241,10 @@
    "retest_metric": "never_opened_rate",
    "simulated_only": true,
    "id": "P5",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Hidden entry point: 30% never open the chat in v1."
   },
   {
    "title": "Show progress while the assistant works and shorten slow replies",
@@ -296,10 +296,10 @@
    "retest_metric": "goal_abandon_rate",
    "simulated_only": true,
    "id": "P6",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Sub-2 s target is stricter than v2's 1.5 s plus indicator; re-test abandonment."
   }
  ],
  "rejected_by_validator": []

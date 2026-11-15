@@ -32,10 +32,10 @@
    "retest_metric": "success_rate_v2",
    "simulated_only": true,
    "id": "P1",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "rejected",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Evidence is T1's 93% success, which shows no problem; the T2 issue is the truncated axis (claude-session P3)."
   },
   {
    "title": "Improve borough filter accessibility",
@@ -63,10 +63,10 @@
    "retest_metric": "success_rate_v2",
    "simulated_only": true,
    "id": "P2",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "approved",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Same fix as claude-session P2; T4 evidence supports it."
   },
   {
    "title": "Make Avg fare KPI card clickable",
@@ -94,10 +94,10 @@
    "retest_metric": "avg_satisfaction",
    "simulated_only": true,
    "id": "P3",
-   "status": "pending",
-   "reviewed_by": null,
-   "reviewed_at": null,
-   "review_note": null
+   "status": "rejected",
+   "reviewed_by": "UX developer (project owner)",
+   "reviewed_at": "2026-11-15T11:25:00+00:00",
+   "review_note": "Conflicts with claude-session P1 (make the card static); cited T5 success is unrelated to the card."
   }
  ],
  "rejected_by_validator": [
