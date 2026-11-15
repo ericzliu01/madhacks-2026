@@ -35,7 +35,7 @@
   #study label.consent { display:flex; gap:8px; align-items:flex-start; font-size:13px; margin:10px 0; }
 
   /* ---------------- chat assistant (bottom-left, as in BI tools) */
-  #chat { position:fixed; left:16px; bottom:16px; width:350px; max-width:calc(100vw - 32px); height:400px; max-height:calc(100vh - 90px);
+  #chat { position:fixed; left:16px; bottom:16px; width:350px; max-width:calc(100vw - 32px); height:270px; max-height:calc(100vh - 90px);
           display:flex; flex-direction:column; background:#fff; border:1px solid var(--line); border-radius:10px;
           box-shadow:0 8px 24px rgba(0,0,0,.14); z-index:20; }
   #chat header { padding:8px 10px; border-bottom:1px solid var(--line); border-radius:10px 10px 0 0; }
@@ -56,7 +56,7 @@
   #chat-launch { position:fixed; left:16px; bottom:16px; z-index:20; }
   body.v1 #chat-launch { width:28px; height:28px; border-radius:50%; border:1px solid #e3e6e8; background:#f4f5f6; color:#c3cacd; font-size:13px; padding:0; cursor:pointer; }
   body.v2 #chat-launch { border-radius:20px; border:0; background:var(--accent); color:#fff; padding:9px 16px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.18); }
-  body.v2.chat-on main { padding-bottom:420px; }
+  body.v2.chat-on main { padding-bottom:300px; }  /* the open panel must not hide content in the fixed version */
   body.tasks #chat, body.tasks #chat-launch { display:none !important; }
 </style>
 </head>

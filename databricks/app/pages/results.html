@@ -116,6 +116,51 @@
       <th class="num">Clicks</th><th class="num">Rage / click</th><th class="num">Sessions</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
   }
 
+  const BEH = { B1: 'Confident wrong percent', B2: 'Ignores the borough (first ask)', B3: 'Slow reply, no indicator',
+                B4: 'Chat entry point hidden', B5: 'Ignores the selected chart point' };
+  const ms = (x) => (x == null ? '–' : (x / 1000).toFixed(1) + 's');
+  const arrow = (a, b, f) => `${f(a)} → ${f(b)}`;
+  function behaviorSection(st, rows) {
+    const by = {}; rows.forEach((r) => { (by[r.behavior] = by[r.behavior] || {})[r.app_version] = r; });
+    const body = Object.keys(by).sort().map((b) => {
+      const a = by[b].v1 || {}, c = by[b].v2 || {};
+      if (b === 'B4') return `<tr><td><b>B4</b><div class="muted" style="font-size:12px">${BEH.B4}</div></td>
+        <td colspan="4">time from first goal to opening the chat: ${arrow(a.avg_ms_to_chat_open, c.avg_ms_to_chat_open, ms)} ·
+        never opened: ${arrow(a.never_opened_rate, c.never_opened_rate, pct)}</td><td class="num">${a.n_sessions ?? 0} / ${c.n_sessions ?? 0} sessions</td></tr>`;
+      return `<tr><td><b>${esc(b)}</b><div class="muted" style="font-size:12px">${esc(BEH[b] || '')}</div></td>
+        <td class="num">${arrow(a.wrong_answer_rate, c.wrong_answer_rate, pct)}</td>
+        <td class="num">${arrow(a.reformulation_rate, c.reformulation_rate, pct)} / ${arrow(a.repair_rate, c.repair_rate, pct)}</td>
+        <td class="num">${arrow(a.avg_latency_ms, c.avg_latency_ms, ms)}</td>
+        <td class="num">${arrow(a.goal_abandon_rate, c.goal_abandon_rate, pct)} / ${arrow(a.overtrust_rate, c.overtrust_rate, pct)}</td>
+        <td class="num">${a.n_turns ?? 0} / ${c.n_turns ?? 0} turns</td></tr>`;
+    }).join('');
+    return `<section class="card"><h2>${tagFor(st)} Chat assistant: planted behaviors, v1 → v2</h2>
+      <p class="sub">Each behavior is flawed in v1 and fixed in v2. "Wrong" is the stub's ground truth. Reformulated = next prompt within 60 s
+      with token overlap ≥ 0.6; repair = any follow-up within 60 s after a failed reply. Over-trust = wrong reply accepted or submitted,
+      rated 4–5, final answer wrong (share of goals that showed a wrong reply).</p>
+      <div class="scroll"><table><thead><tr><th>Behavior</th><th class="num">Wrong replies</th><th class="num">Reformulated / repair</th>
+      <th class="num">Latency</th><th class="num">Goal abandoned / over-trust</th><th class="num">n v1 / v2</th></tr></thead>
+      <tbody>${body}</tbody></table></div></section>`;
+  }
+  function goalSection(st, rows) {
+    const by = {}; rows.forEach((r) => { (by[r.goal_id] = by[r.goal_id] || { cats: r.goal_cats })[r.app_version] = r; });
+    const body = Object.keys(by).sort().map((g) => {
+      const a = by[g].v1 || {}, b = by[g].v2 || {};
+      return `<tr><td><b>${esc(g)}</b><div class="muted" style="font-size:12px">${esc(String(by[g].cats || '').replace(/\|/g, ', '))}</div></td>
+        <td>${pairBars(a.success_rate, b.success_rate, a.n_goals, b.n_goals)}</td>
+        <td class="num">${delta(a.success_rate, b.success_rate, true)}</td>
+        <td class="num">${arrow(a.abandon_rate, b.abandon_rate, pct)}</td>
+        <td class="num">${arrow(a.avg_turns, b.avg_turns, (x) => (x == null ? '–' : x.toFixed(1)))}</td>
+        <td class="num">${arrow(a.avg_time_to_first_prompt_ms, b.avg_time_to_first_prompt_ms, ms)}</td>
+        <td class="num">${a.n_goals ?? 0} / ${b.n_goals ?? 0}</td></tr>`;
+    }).join('');
+    return `<section class="card"><h2>${tagFor(st)} Chat goals, v1 vs v2</h2>
+      <p class="sub">Open-ended goals worked on with the assistant. Success = final answer within tolerance of the computed ground truth.</p>
+      <div class="legend"><span><i style="background:var(--v1)"></i>v1 (planted behaviors)</span><span><i style="background:var(--v2)"></i>v2 (fixed)</span></div>
+      <div class="scroll"><table><thead><tr><th>Goal</th><th>Success rate</th><th class="num">Change</th><th class="num">Abandoned</th>
+      <th class="num">Turns</th><th class="num">To first prompt</th><th class="num">n v1 / v2</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+  }
+
   function proposalSection(p) {
     if (!p || !Array.isArray(p.changes)) return `<section class="card"><h2>Design proposals</h2><p class="sub">No proposal file yet. Run <code>databricks/designer/propose.py</code>.</p></section>`;
     const items = p.changes.map((c) => {
@@ -136,16 +181,21 @@
     catch (e) { $('status').hidden = true; $('out').innerHTML = `<div class="err">Could not reach /api/results: ${esc(e)}</div>`; return; }
     $('status').hidden = true;
     let html = d.error ? `<div class="err">${esc(d.error)}</div>` : '';
-    const tasks = d.tasks || [], els = d.elements || [];
-    const types = [...new Set(tasks.map((r) => r.session_type).concat(els.map((r) => r.session_type)))].sort(byType);
+    const tasks = d.tasks || [], els = d.elements || [], gl = d.goals || [], bh = d.behaviors || [];
+    const errs = Object.entries(d.errors || {});
+    if (errs.length) html += `<div class="err">Some tables could not be read (run the full pipeline SQL?):\n${errs.map(([k, v]) => esc(k) + ': ' + esc(v)).join('\n')}</div>`;
+    const types = [...new Set([...tasks, ...els, ...gl, ...bh].map((r) => r.session_type))].sort(byType);
     if (!d.error && !types.length) html += `<div class="card muted">The gold tables are empty. Run 01b, 02 and 03.</div>`;
     types.forEach((st) => {
       const t = tasks.filter((r) => r.session_type === st), e = els.filter((r) => r.session_type === st);
+      const g = gl.filter((r) => r.session_type === st), b = bh.filter((r) => r.session_type === st);
+      if (g.length) html += goalSection(st, g);
+      if (b.length) html += behaviorSection(st, b);
       if (t.length) html += taskSection(st, t);
       if (e.length) html += elementSection(st, e);
     });
     html += proposalSection(d.proposals);
-    if (d.schema) html += `<p class="muted" style="font-size:12px">Source: <code>${esc(d.schema)}.gold_task_summary</code>, <code>gold_element_friction</code> via SQL warehouse. Cached 30 s.</p>`;
+    if (d.schema) html += `<p class="muted" style="font-size:12px">Source: <code>${esc(d.schema)}.gold_task_summary</code>, <code>gold_element_friction</code>, <code>gold_goal_summary</code>, <code>gold_bot_behavior</code> via SQL warehouse. Cached 30 s.</p>`;
     $('out').innerHTML = html;
   }
   $('reload').addEventListener('click', (e) => { e.preventDefault(); load(); });

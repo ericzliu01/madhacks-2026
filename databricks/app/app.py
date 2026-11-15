@@ -143,6 +143,13 @@ class GoldReader:
                         f"rage_per_click FROM {s}.gold_element_friction "
                         f"WHERE n_rage_clicks > 0 OR n_dead_clicks > 0 "
                         f"ORDER BY session_type, n_rage_clicks DESC, n_dead_clicks DESC LIMIT 40",
+            "goals": f"SELECT session_type, app_version, goal_id, goal_cats, n_goals, success_rate, abandon_rate, "
+                     f"avg_turns, overtrust_rate, n_wrong_answer_shown, dropoff_rate, avg_time_to_first_prompt_ms "
+                     f"FROM {s}.gold_goal_summary ORDER BY session_type, goal_id, app_version",
+            "behaviors": f"SELECT session_type, behavior, app_version, n_turns, n_goals, n_sessions, wrong_answer_rate, "
+                         f"reformulation_rate, repair_rate, verification_rate, avg_latency_ms, goal_success_rate, "
+                         f"goal_abandon_rate, overtrust_rate, avg_ms_to_chat_open, never_opened_rate "
+                         f"FROM {s}.gold_bot_behavior ORDER BY session_type, behavior, app_version",
         }
 
     def query(self, sql):
@@ -161,10 +168,20 @@ class GoldReader:
         return [{c.name: _convert(v, c) for c, v in zip(cols, row)} for row in rows]
 
     def results(self):
+        """{key: rows} per query; a failing query (e.g. a table not built yet) is reported under errors[key] and
+        does not hide the others. Raises only if every query fails (usually a grant or warehouse problem)."""
         with self.lock:
             if self._cache is None or time.time() - self._at > self.ttl:
-                self._cache = {k: self.query(q) for k, q in self.queries().items()}
-                self._at = time.time()
+                out, errors = {}, {}
+                for k, q in self.queries().items():
+                    try:
+                        out[k] = self.query(q)
+                    except Exception as ex:
+                        errors[k] = f"{type(ex).__name__}: {ex}"[:300]
+                if not out:
+                    raise RuntimeError("; ".join(f"{k}: {v}" for k, v in errors.items())[:400])
+                out["errors"] = errors
+                self._cache, self._at = out, time.time()
             return self._cache
 
 

@@ -28,6 +28,13 @@ Serves the planted-flaw "Taxi Ops" dashboard (v1 flawed, v2 fixed) and writes th
 5. Re-run `01b_bronze_load.sql` (it skips files already in bronze), then `02`, `03`.
 6. Debug: open `<app-url>/status` to see the sink, buffered/written counts, and the last upload error.
 
+## Study modes and the chat assistant
+- `?mode=goals` (default in study mode): 5 goals worked on with the bottom-left assistant. `POST /chat` is a stub
+  (`chatbot.py`, synced from `demo/dashboard/chatbot.py` by `scripts/sync-core.sh`) with planted behaviors B1-B5. The
+  prompt is used to answer and never stored by the app; the browser decides whether its text is logged (consent box).
+- `?mode=tasks`: the original task panel (T1-T5).
+- `CHAT_LATENCY_SCALE` (env, default 1) scales the planted reply delays (B3: 7 s in v1, 1.5 s in v2).
+
 ## Results page (`/results`)
 Shows v1 vs v2 per task, the elements with rage/dead clicks, and the designer's proposals, read from the gold tables
 through a SQL warehouse. Human and simulated rows are always shown separately and labeled. One-time setup:

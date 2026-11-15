@@ -85,7 +85,7 @@ check("gold reader polls PENDING to SUCCEEDED and types values",
 check("gold queries hit the configured schema and warehouse",
       all(w == "wh-1" and "workspace.ux_telemetry.gold_" in q for q, w in sx.sql))
 gold.results()
-check("results cached within ttl", len(sx.sql) == 2)
+check("results cached within ttl", len(sx.sql) == 4)
 
 (tmp / "proposals").mkdir()
 (tmp / "proposals" / "latest.json").write_text(json.dumps({"changes": [{"id": "P1", "uxid": "kpi-avg-fare"}]}))
@@ -98,6 +98,15 @@ check("/api/results without warehouse explains setup", d["configured"] is False 
 app.Handler.gold = gold
 d = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/results").read())
 check("/api/results returns gold rows + proposals", d["configured"] and len(d["tasks"]) == 2 and d["proposals"]["changes"][0]["uxid"] == "kpi-avg-fare")
+class HalfSX(FakeSX):  # chat tables not built yet: those queries fail, task queries still work
+    def execute_statement(self, statement, warehouse_id, wait_timeout):
+        if "gold_bot_behavior" in statement or "gold_goal_summary" in statement:
+            return NS(statement_id="x", status=NS(state=NS(value="FAILED"), error=NS(message="TABLE_OR_VIEW_NOT_FOUND")))
+        return super().execute_statement(statement, warehouse_id, wait_timeout)
+app.Handler.gold = app.GoldReader("wh-1", "workspace.ux_telemetry", client=NS(statement_execution=HalfSX()))
+d = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/api/results").read())
+check("/api/results: a missing chat table does not hide the task results",
+      len(d["tasks"]) == 2 and "goals" not in d and "TABLE_OR_VIEW_NOT_FOUND" in d["errors"]["behaviors"] and "error" not in d)
 class BoomSX(FakeSX):
     def get_statement(self, sid): return NS(statement_id=sid, status=NS(state=NS(value="FAILED"), error=NS(message="PERMISSION_DENIED: no SELECT")))
 app.Handler.gold = app.GoldReader("wh-1", "workspace.ux_telemetry", client=NS(statement_execution=BoomSX()))
