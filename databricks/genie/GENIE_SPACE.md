@@ -6,8 +6,10 @@ up to 100 instructions per space, benchmarks measure accuracy but do not feed Ge
 plus SELECT on the tables. Verify exact UI steps in the docs: this was written without workspace access.)
 
 ## 1. Create the space
-- Tables: `gold_trial_metrics`, `gold_task_summary`, `gold_element_friction`, `gold_version_comparison`
-  (add `gold_prompt_labels` once prompt data exists). Run `05_comments.sql` first: Genie reads those descriptions.
+- Task study (mode=tasks): `gold_trial_metrics`, `gold_task_summary`, `gold_element_friction`, `gold_version_comparison`.
+- Chat study (mode=goals): `gold_goal_summary`, `gold_bot_behavior`, `gold_goal_metrics`, `gold_turn_metrics`, and
+  `gold_prompt_labels` / `gold_prompt_label_agreement` after running `ux_ai_labels.sql`.
+- `ux_pipeline_all.sql` ends with the table and column comments (`05_comments.sql`): Genie reads those descriptions.
 
 ## 2. General instructions (paste into the space)
 ```
@@ -23,6 +25,23 @@ You analyze UX telemetry from usability trials of a dashboard. Each trial is one
   rows together. If the question does not say which, show both, human first.
 - Samples are small. Report counts (n_trials) next to every rate and avoid claims of statistical significance.
 - Exclude nothing silently. If a filter drops rows, say how many.
+
+Chat-assistant study (tables gold_goal_*, gold_turn_metrics, gold_bot_behavior):
+- A goal is an open-ended need worked on with a dashboard assistant over several turns. A turn is one prompt and its reply.
+- The assistant is a scripted stub with planted behaviors, flawed in v1 and fixed in v2: B1 confident wrong percent,
+  B2 ignores the borough the first time, B3 slow reply with no progress indicator, B4 chat entry point hidden,
+  B5 ignores the chart point the user selected. "correct" on a turn is testbed ground truth about the stub's reply.
+- To compare behaviors, use gold_bot_behavior and compare v1 with v2 for the same behavior. B4 has only
+  avg_ms_to_chat_open and never_opened_rate (per session); its turn columns are NULL by design.
+- "Which behavior hurts most": compare the v1 minus v2 difference in goal_abandon_rate, wrong_answer_rate and
+  overtrust_rate per behavior, and show n_turns or n_goals. Do not rank on a single rate without its n.
+- Never invent a composite, weighted or "harm" score. Report each metric separately as v1 versus v2, and say that
+  different metrics can rank the behaviors differently (e.g. one behavior drives abandonment, another over-trust).
+- A planted behavior's effect is the v1 minus v2 difference, never the v1 value alone.
+- reformulated = next prompt within 60 s with token overlap >= 0.6. repair_attempt = any follow-up within 60 s after a
+  failed reply. verified = chart interaction within 10 s after a reply. overtrust (goals) = a wrong reply accepted or
+  submitted, satisfaction 4-5, final answer wrong. overtrust_rate is over goals that showed a wrong reply (n_wrong_answer_shown).
+- In the chat tables success is outcome = 'correct' in gold_goal_metrics, or success_rate in gold_goal_summary.
 ```
 
 ## 3. Example SQL queries (add as tested examples; replace the schema name)
@@ -39,7 +58,25 @@ You analyze UX telemetry from usability trials of a dashboard. Each trial is one
 6. *Compare friction by Amar task category.*
    `SELECT session_type, task_category, app_version, SUM(success_rate * n_trials) / SUM(n_trials) AS success_rate, SUM(n_trials) AS n_trials FROM gold_task_summary GROUP BY session_type, task_category, app_version`
 
+Chat study:
+
+7. *Which planted assistant behavior hurts most?*
+   `SELECT a.session_type, a.behavior, a.goal_abandon_rate - b.goal_abandon_rate AS abandon_increase_v1, a.wrong_answer_rate - b.wrong_answer_rate AS wrong_increase_v1, a.overtrust_rate AS overtrust_v1, a.n_turns AS n_turns_v1, b.n_turns AS n_turns_v2 FROM gold_bot_behavior a JOIN gold_bot_behavior b ON a.session_type = b.session_type AND a.behavior = b.behavior AND a.app_version = 'v1' AND b.app_version = 'v2' WHERE a.behavior <> 'B4' ORDER BY a.session_type, abandon_increase_v1 DESC`
+8. *Where do users over-trust the assistant?*
+   `SELECT session_type, goal_id, app_version, overtrust_rate, n_wrong_answer_shown, n_goals FROM gold_goal_summary WHERE n_wrong_answer_shown > 0 ORDER BY session_type, overtrust_rate DESC`
+9. *Where do users rephrase their questions?*
+   `SELECT session_type, behavior, app_version, reformulation_rate, repair_rate, n_turns FROM gold_bot_behavior WHERE behavior <> 'B4' ORDER BY session_type, reformulation_rate DESC`
+10. *Did the v2 assistant help per goal?*
+   `SELECT session_type, goal_id, goal_cats, app_version, success_rate, abandon_rate, avg_turns, n_goals FROM gold_goal_summary ORDER BY session_type, goal_id, app_version`
+11. *How hard is the assistant to find?*
+   `SELECT session_type, app_version, avg_ms_to_chat_open, never_opened_rate, n_sessions FROM gold_bot_behavior WHERE behavior = 'B4' ORDER BY session_type, app_version`
+
 ## 4. Benchmarks (2-4 phrasings each; the docs suggest at least 5 questions)
+Baseline before curation (2026-11-15, Genie through the MCP, not the curated space, simulated data only): asked "which
+planted bot behavior hurts users most?", Genie checked human rows first (good), then made up a weighted harm score and
+looked at v1 only, ranking B5 first. Example 7 ranks by v1 minus v2 instead: B3 leads on abandonment (+0.29), B1 on
+over-trust (0.38). The "never invent a composite score" instruction targets this.
+
 | Intent | Phrasings | Expected from |
 |---|---|---|
 | Hardest task | "Which task has the lowest success rate?" / "Where do users fail most?" | example 1 |
@@ -47,6 +84,11 @@ You analyze UX telemetry from usability trials of a dashboard. Each trial is one
 | Rage-click source | "What do users rage-click?" / "Which element gets the most rage clicks in v1?" | example 3 |
 | Over-trust | "Where are users satisfied but wrong?" / "Which task has the highest over-trust?" | example 4 |
 | Hesitation | "Where do people hesitate most?" / "Which task has the highest idle time?" | example 5 |
+| Worst bot behavior | "Which bot behavior hurts most?" / "Which planted assistant flaw causes the most abandonment?" | example 7 |
+| Chat over-trust | "Where do users over-trust the assistant?" / "Which goal has the most accepted wrong answers?" | example 8 |
+| Rephrasing | "Where do users rephrase their questions?" / "Which behavior makes people reformulate?" | example 9 |
+| Goal impact | "Did the v2 assistant improve goal success?" / "Which goal improved most in v2?" | example 10 |
+| Entry point | "How long does it take to find the assistant?" / "How many sessions never open the chat?" | example 11 |
 
 Run the benchmarks after each change to instructions or tables. Treat a failing benchmark as a prompt to add an example
 query or sharpen an instruction.
